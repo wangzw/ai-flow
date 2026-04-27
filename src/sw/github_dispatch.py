@@ -13,15 +13,16 @@ Commands:
     pr-ready         — handle PR ready_for_review (SW_PR_NUMBER)
     merge-queue      — process the merge queue (no per-PR env)
 
-NOTE (scope): This dispatcher establishes the GitHub event ingress and
-delegates to platform-portable logic (state_machine, comment_parser,
-ac_validator, comment_writer). The current GitLab-flavored handlers
-(`sw.handlers.*`) and `sw.coder` / `sw.merge_queue` use python-gitlab
-idioms. A future plan will refactor those modules to accept an abstract
-client so this dispatcher can drive them directly. Until then, this
-module performs the platform-agnostic decisions inline (AC validation,
-state-label transitions, comment generation) and uses GitHubClient for
-API I/O.
+Architecture: this dispatcher composes platform-agnostic logic
+(state_machine, comment_parser, ac_validator, comment_writer) with
+GitHub-specific implementations (coder_gh, merge_queue_gh, github_client,
+copilot_cli_client) and the platform-agnostic reviewer (which accepts any
+CLI client with the .run() interface — here CopilotCliClient).
+
+The original GitLab-flavored handlers (`sw.handlers.*`) and `sw.coder` /
+`sw.merge_queue` are NOT used on this path — instead, we have parallel
+`coder_gh` and `merge_queue_gh` modules. A future refactor could unify
+these via a Protocol; for now, parity is via parallel implementations.
 """
 
 import os

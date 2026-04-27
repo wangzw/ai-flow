@@ -3,13 +3,28 @@
 Used by `claude_code_client` and `copilot_cli_client` to give real-time
 visibility into long-running CLI agentic sessions in CI logs while still
 returning the full output for downstream parsing.
+
+Critical: when a child process detects its stdout is a pipe (not a TTY), C
+stdlib defaults to BLOCK buffering. That means small/intermittent output sits
+in the child's internal buffer for minutes before flushing — invisible to our
+tee threads. We prepend `stdbuf -oL -eL` (when available, e.g. Linux runners)
+to force the child to LINE buffer its stdout/stderr.
 """
 
+import shutil
 import subprocess
 import sys
 import threading
 from pathlib import Path
 from typing import IO
+
+
+def _wrap_with_stdbuf(cmd: list[str]) -> list[str]:
+    """Prepend `stdbuf -oL -eL` if available (forces child to line-buffer)."""
+    stdbuf = shutil.which("stdbuf")
+    if stdbuf is None:
+        return cmd
+    return [stdbuf, "-oL", "-eL", *cmd]
 
 
 def run_streaming(
@@ -26,8 +41,9 @@ def run_streaming(
 
     Returns (returncode, captured_stdout, captured_stderr).
     """
+    wrapped = _wrap_with_stdbuf(cmd)
     proc = subprocess.Popen(
-        cmd,
+        wrapped,
         cwd=cwd,
         env=env,
         stdin=subprocess.PIPE if input_data is not None else None,

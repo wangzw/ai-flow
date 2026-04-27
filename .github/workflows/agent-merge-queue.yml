@@ -32,6 +32,7 @@ jobs:
 
       - name: Process merge queue
         env:
+          PYTHONUNBUFFERED: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}

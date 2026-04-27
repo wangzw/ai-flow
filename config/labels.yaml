@@ -1,0 +1,20 @@
+labels:
+  - name: agent-ready
+    color: "#1F75CB"
+    description: "AC 就绪，待派发给 Agent"
+
+  - name: agent-working
+    color: "#FFA500"
+    description: "Agent 正在工作，人勿扰"
+
+  - name: needs-human
+    color: "#D9534F"
+    description: "Agent 卡住，等人类回应"
+
+  - name: agent-done
+    color: "#1A7F37"
+    description: "Agent 已完成（终态：成功）"
+
+  - name: agent-failed
+    color: "#5D5D5D"
+    description: "Agent 失败（终态：不可恢复）"

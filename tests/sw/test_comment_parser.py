@@ -1,4 +1,4 @@
-from sw.comment_parser import extract_yaml_block
+from sw.comment_parser import extract_agent_command, extract_yaml_block
 
 
 def test_extract_yaml_block_from_comment():
@@ -48,3 +48,25 @@ second: 2
 ```"""
     result = extract_yaml_block(comment)
     assert result == {"first": 1}
+
+
+def test_extract_agent_command_at_line_start():
+    assert extract_agent_command("/agent resume") == "resume"
+    assert extract_agent_command("Some context\n/agent retry") == "retry"
+
+
+def test_extract_agent_command_unknown_command_returns_none():
+    assert extract_agent_command("/agent unknown") is None
+
+
+def test_extract_agent_command_not_at_line_start_ignored():
+    assert extract_agent_command("please /agent resume") is None
+
+
+def test_extract_agent_command_picks_last_command_when_multiple():
+    # 用户多次编辑评论，最后一行命令为准
+    assert extract_agent_command("/agent retry\n/agent resume") == "resume"
+
+
+def test_extract_agent_command_returns_none_when_absent():
+    assert extract_agent_command("just plain text") is None

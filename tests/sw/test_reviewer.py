@@ -10,7 +10,9 @@ def _make_per_dim_marker(repo_path: Path, dim: str, result: str, reason: str = "
     (review_dir / f"{dim}.yaml").write_text(f"result: {result}\nreason: {reason}\n")
 
 
-def _make_combined_marker(repo_path: Path, results: dict[str, str], reasons: dict[str, str] | None = None):
+def _make_combined_marker(
+    repo_path: Path, results: dict[str, str], reasons: dict[str, str] | None = None
+):
     review_dir = repo_path / ".review"
     review_dir.mkdir(exist_ok=True)
     lines = ["results:"]

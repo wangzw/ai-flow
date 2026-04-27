@@ -32,6 +32,9 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
       - name: Install framework
         run: pip install -e ".[dev]"
 
@@ -40,5 +43,6 @@ jobs:
           PYTHONUNBUFFERED: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
         run: python -m sw.github_dispatch merge-queue

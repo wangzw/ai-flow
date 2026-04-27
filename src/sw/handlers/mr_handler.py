@@ -1,6 +1,7 @@
 import re
 from typing import Callable
 
+from sw.metrics import EVENTS, emit
 from sw.reviewer import run_review_matrix
 
 _CLOSES_RE = re.compile(r"closes\s+#(\d+)", re.IGNORECASE)
@@ -25,11 +26,15 @@ def handle_mr_ready(
     result = reviewer(mr_iid=mr_iid, project_path=project.path_with_namespace)
 
     if not result.all_passed:
+        emit(EVENTS.REVIEWER_FAILED, mr_iid=mr_iid, failed_dimensions=result.failed_dimensions)
         # MVP: leave for future "agent-fixing"-style loop. For now, do nothing.
         return
+
+    emit(EVENTS.REVIEWER_PASSED, mr_iid=mr_iid, failed_dimensions=result.failed_dimensions)
 
     # All MUST dimensions PASS — enqueue for serial merge processing.
     # The merge queue (sw.merge_queue.process_merge_queue) handles rebase + re-review + ff-merge.
     if "merge-queued" not in mr.labels:
         mr.labels = [*mr.labels, "merge-queued"]
         mr.save()
+        emit(EVENTS.ENQUEUED, mr_iid=mr_iid)

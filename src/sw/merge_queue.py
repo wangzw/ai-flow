@@ -11,6 +11,7 @@ import re
 import time
 from typing import Callable
 
+from sw.metrics import EVENTS, emit
 from sw.reviewer import run_review_matrix
 
 
@@ -72,6 +73,8 @@ def process_merge_queue(
     head = candidates_sorted[0]
     head_iid = head.iid
 
+    emit(EVENTS.QUEUE_POP, mr_iid=head_iid)
+
     # Trigger rebase, then poll for completion
     head.rebase()
     refreshed = _wait_for_rebase(
@@ -89,6 +92,7 @@ def process_merge_queue(
     )
 
     if not result.all_passed:
+        emit(EVENTS.DEQUEUED, mr_iid=head_iid, failed_dimensions=result.failed_dimensions)
         # Remove merge-queued label, reset Issue to agent-working
         if QUEUE_LABEL in refreshed.labels:
             refreshed.labels = [lbl for lbl in refreshed.labels if lbl != QUEUE_LABEL]
@@ -101,6 +105,7 @@ def process_merge_queue(
 
     # All pass — merge
     refreshed.merge(merge_when_pipeline_succeeds=False, should_remove_source_branch=True)
+    emit(EVENTS.MERGED, mr_iid=head_iid)
 
     issue_iid = _extract_closing_issue_iid(refreshed.description)
     if issue_iid is not None:

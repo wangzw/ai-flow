@@ -3,6 +3,7 @@ from typing import Callable
 from sw.ac_validator import validate_ac
 from sw.coder import run_coder
 from sw.comment_writer import build_needs_human_comment
+from sw.metrics import EVENTS, emit
 
 
 def handle_issue_event(
@@ -27,6 +28,7 @@ def handle_issue_event(
     result = validate_ac(issue.description or "")
 
     if not result.valid:
+        emit(EVENTS.AC_VALIDATION, issue_iid=issue_iid, result="FAIL", reason=result.reason)
         comment = build_needs_human_comment(
             prose=f"AC 验收失败：{result.reason}。请补充 AC 后重新打 `agent-ready` 标签。",
             agent_state={"stage": "ac_validation", "blocker_type": "ac_invalid"},
@@ -42,11 +44,18 @@ def handle_issue_event(
         client.set_state_label(issue, "needs-human")
         return
 
+    emit(EVENTS.AC_VALIDATION, issue_iid=issue_iid, result="PASS")
     client.set_state_label(issue, "agent-working")
+    emit(EVENTS.CODER_DISPATCHED, issue_iid=issue_iid)
     coder_result = coder(project=project, issue_iid=issue_iid, issue_title=issue.title)
     if coder_result is None or coder_result.success:
         return
     blocker = coder_result.blocker or {}
+    emit(
+        EVENTS.CODER_BLOCKER,
+        issue_iid=issue_iid,
+        blocker_type=blocker.get("blocker_type", "unknown"),
+    )
     comment = build_needs_human_comment(
         prose=f"Coder 阻塞：{blocker.get('blocker_type', 'unknown')}",
         agent_state={

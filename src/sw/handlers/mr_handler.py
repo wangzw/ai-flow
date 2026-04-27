@@ -28,7 +28,11 @@ def handle_mr_ready(
         # MVP: leave for future "agent-fixing"-style loop. For now, do nothing.
         return
 
-    # ff-merge — rebase before merge to keep linear history (per spec §5.5)
+    # ff-merge — rebase before merge to keep linear history (per spec §5.5).
+    # KNOWN GAP (real Coder): GitLab's mr.rebase() is asynchronous and the
+    # subsequent merge() can race with it. With the stub Coder this never
+    # manifests because branches are tiny. To be addressed when the real
+    # Coder lands — poll mr.rebase_in_progress before calling merge().
     mr.rebase()
     mr.merge(merge_when_pipeline_succeeds=False, should_remove_source_branch=True)
 

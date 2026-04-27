@@ -87,3 +87,9 @@ def test_is_terminal_recognizes_done_and_failed():
     assert StateMachine(current="agent-failed").is_terminal() is True
     assert StateMachine(current="agent-working").is_terminal() is False
     assert StateMachine(current="needs-human").is_terminal() is False
+
+
+def test_command_start_from_none_state_transitions_to_ready():
+    sm = StateMachine(current=None)
+    sm.transition(event="command:start")
+    assert sm.current == "agent-ready"

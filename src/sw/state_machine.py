@@ -9,6 +9,7 @@ _TERMINAL: set[str] = {"agent-done", "agent-failed"}
 # Map (current_state_or_None, event) -> next_state
 _TRANSITIONS: dict[tuple[str | None, str], str] = {
     (None, "label_added:agent-ready"): "agent-ready",
+    (None, "command:start"): "agent-ready",
     ("agent-ready", "action_started"): "agent-working",
     ("agent-working", "agent_blocked"): "needs-human",
     ("needs-human", "command:resume"): "agent-working",

@@ -98,3 +98,44 @@ def test_no_command_is_no_op():
     )
 
     client.set_state_label.assert_not_called()
+
+
+def test_retry_from_working_re_dispatches_coder():
+    project = MagicMock()
+    project.issues.get.return_value = _make_issue(["agent-working"])
+    client = MagicMock()
+    coder = MagicMock()
+
+    handle_comment_event(
+        project=project,
+        issue_iid=42,
+        comment_body="/agent retry",
+        client=client,
+        coder=coder,
+    )
+
+    set_calls = client.set_state_label.call_args_list
+    labels = [c.kwargs.get("new_label") or c.args[1] for c in set_calls]
+    assert "agent-working" in labels  # stays working
+    coder.assert_called_once()
+
+
+def test_start_from_no_label_transitions_to_ready():
+    project = MagicMock()
+    project.issues.get.return_value = _make_issue([])  # no state label
+    client = MagicMock()
+    coder = MagicMock()
+
+    handle_comment_event(
+        project=project,
+        issue_iid=42,
+        comment_body="/agent start",
+        client=client,
+        coder=coder,
+    )
+
+    set_calls = client.set_state_label.call_args_list
+    labels = [c.kwargs.get("new_label") or c.args[1] for c in set_calls]
+    assert "agent-ready" in labels
+    # start does not directly run coder; agent-ready label triggers issue_handler
+    coder.assert_not_called()

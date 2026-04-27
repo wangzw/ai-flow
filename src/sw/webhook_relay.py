@@ -38,22 +38,22 @@ def _maybe_trigger_issue(payload: dict, project_path: str) -> bool:
     label_change = changes.get("labels")
     if not label_change:
         return False
-    prev = {label["title"] for label in label_change.get("previous", [])}
-    curr = {label["title"] for label in label_change.get("current", [])}
+    prev = {item["title"] for item in label_change.get("previous", [])}
+    curr = {item["title"] for item in label_change.get("current", [])}
     added = curr - prev
+    if "agent-ready" not in added:
+        return False
     iid = payload["object_attributes"]["iid"]
-    for label in added:
-        _trigger_pipeline(
-            project_path=project_path,
-            ref=payload["project"].get("default_branch", "main"),
-            variables={
-                "CI_TRIGGERED_EVENT": "issue_label_added",
-                "SW_ISSUE_IID": str(iid),
-                "SW_LABEL_ADDED": label,
-            },
-        )
-        return True
-    return False
+    _trigger_pipeline(
+        project_path=project_path,
+        ref=payload["project"].get("default_branch", "main"),
+        variables={
+            "CI_TRIGGERED_EVENT": "issue_label_added",
+            "SW_ISSUE_IID": str(iid),
+            "SW_LABEL_ADDED": "agent-ready",
+        },
+    )
+    return True
 
 
 def _maybe_trigger_note(payload: dict, project_path: str) -> bool:

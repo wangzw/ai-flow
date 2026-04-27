@@ -97,3 +97,47 @@ def test_unrelated_event_is_no_op(client, monkeypatch):
     resp = _post(client, payload)
     assert resp.status_code == 200
     assert called == []
+
+
+def test_label_added_with_multiple_including_agent_ready(client, monkeypatch):
+    triggered = {}
+    monkeypatch.setattr(
+        "sw.webhook_relay._trigger_pipeline",
+        lambda **kw: triggered.update(**kw),
+    )
+    payload = {
+        "object_kind": "issue",
+        "project": {"path_with_namespace": "g/r", "default_branch": "main"},
+        "object_attributes": {"iid": 42, "action": "update"},
+        "changes": {
+            "labels": {
+                "previous": [],
+                "current": [{"title": "bug"}, {"title": "agent-ready"}, {"title": "p1"}],
+            }
+        },
+    }
+    resp = _post(client, payload)
+    assert resp.status_code == 200
+    assert triggered["variables"]["SW_LABEL_ADDED"] == "agent-ready"
+
+
+def test_label_added_without_agent_ready_does_not_trigger(client, monkeypatch):
+    called = []
+    monkeypatch.setattr(
+        "sw.webhook_relay._trigger_pipeline",
+        lambda **kw: called.append(kw),
+    )
+    payload = {
+        "object_kind": "issue",
+        "project": {"path_with_namespace": "g/r", "default_branch": "main"},
+        "object_attributes": {"iid": 42, "action": "update"},
+        "changes": {
+            "labels": {
+                "previous": [],
+                "current": [{"title": "bug"}, {"title": "p1"}],
+            }
+        },
+    }
+    resp = _post(client, payload)
+    assert resp.status_code == 200
+    assert called == []

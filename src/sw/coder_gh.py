@@ -98,42 +98,54 @@ def run_coder_gh(
     workdir: Path | None = None,
 ) -> CoderResult:
     """Run real Coder for GitHub: clone, prompt Copilot CLI, parse result, push & open PR."""
+    import time
+
     cli = cli or CopilotCliClient()
     workdir = workdir or Path(tempfile.mkdtemp(prefix=f"agent-issue-{issue_number}-"))
     branch_name = f"agent/issue-{issue_number}"
     base = repo.default_branch
 
+    print(f"[coder] starting on issue #{issue_number} (branch={branch_name})", flush=True)
     issue = repo.get_issue(issue_number)
     body = issue.body or ""
 
     repo_path = workdir / "repo"
-    # URL selection:
-    # - SW_GIT_TOKEN env (set in CI): build HTTPS URL with embedded token for clone+push
-    # - Else: use SSH URL (local users typically have SSH keys configured)
     sw_git_token = os.environ.get("SW_GIT_TOKEN")
     if sw_git_token:
         https = repo.clone_url
         prefix = "https://"
         clone_url = https.replace(prefix, f"{prefix}x-access-token:{sw_git_token}@", 1)
+        print("[coder] cloning via HTTPS+token...", flush=True)
     else:
         clone_url = getattr(repo, "ssh_url", None) or repo.clone_url
+        print("[coder] cloning via SSH...", flush=True)
+    t0 = time.monotonic()
     try:
         local_repo = _clone_repo(clone_url, repo_path, branch=base)
     except Exception as exc:
+        print(f"[coder] clone FAILED: {exc}", flush=True)
         return CoderResult(
             success=False,
             blocker={"blocker_type": "clone_failed", "reason": str(exc)},
             branch_name=branch_name,
         )
+    print(f"[coder] cloned in {time.monotonic() - t0:.1f}s", flush=True)
 
     try:
         local_repo.git.checkout("-b", branch_name)
+        print(f"[coder] created branch {branch_name}", flush=True)
     except Exception:
         pass
 
     prompt = _PROMPT_TEMPLATE.format(cwd=str(repo_path), title=issue_title, body=body)
 
+    print("[coder] invoking copilot CLI (this is the slow part)...", flush=True)
+    t0 = time.monotonic()
     cli_result = cli.run(prompt=prompt, cwd=repo_path)
+    print(
+        f"[coder] copilot exited rc={cli_result.returncode} in {time.monotonic() - t0:.1f}s",
+        flush=True,
+    )
 
     # Marker file is the canonical signal. Trust it even if CLI exited non-zero
     # (some CLIs return non-zero for benign post-task reasons after completing work).
@@ -183,8 +195,11 @@ def run_coder_gh(
             branch_name=branch_name,
         )
 
+    print("[coder] marker says done, pushing branch...", flush=True)
     _push_branch(local_repo, branch_name)
+    print(f"[coder] branch pushed: {branch_name}", flush=True)
 
+    print("[coder] creating draft PR...", flush=True)
     pr = repo.create_pull(
         title=f"Draft: {issue_title}",
         body=(
@@ -196,5 +211,6 @@ def run_coder_gh(
         base=base,
         draft=True,
     )
+    print(f"[coder] PR #{pr.number} created (draft)", flush=True)
 
     return CoderResult(success=True, mr_iid=pr.number, branch_name=branch_name)

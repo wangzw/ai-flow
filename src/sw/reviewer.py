@@ -141,6 +141,8 @@ def run_review_matrix(
     repo_path: Path | None = None,
 ) -> ReviewResult:
     """Run all MUST dimension reviews sequentially. Fail-closed on any error."""
+    import time
+
     claude = claude or ClaudeCodeClient()
     if repo_path is None:
         raise ValueError("repo_path is required for real reviewer")
@@ -149,12 +151,34 @@ def run_review_matrix(
     reasons: dict[str, str] = {}
     failed: list[str] = []
 
-    for dim in MUST_DIMENSIONS:
+    total = len(MUST_DIMENSIONS)
+    print(
+        f"[reviewer] starting matrix: {total} dimensions on MR #{mr_iid} ({project_path})",
+        flush=True,
+    )
+    overall_start = time.monotonic()
+
+    for idx, dim in enumerate(MUST_DIMENSIONS, start=1):
+        print(f"[reviewer {idx}/{total}] {dim}: invoking CLI...", flush=True)
+        t0 = time.monotonic()
         status, reason = _review_one(dim=dim, claude=claude, repo_path=repo_path)
+        elapsed = time.monotonic() - t0
         dimension_results[dim] = status
         reasons[dim] = reason
+        marker = "✓" if status == "PASS" else "✗"
+        print(
+            f"[reviewer {idx}/{total}] {dim}: {marker} {status} ({elapsed:.1f}s) — {reason}",
+            flush=True,
+        )
         if status != "PASS":
             failed.append(dim)
+
+    total_elapsed = time.monotonic() - overall_start
+    summary = "ALL PASSED" if not failed else f"FAILED on {failed}"
+    print(
+        f"[reviewer] matrix done in {total_elapsed:.1f}s: {summary}",
+        flush=True,
+    )
 
     return ReviewResult(
         all_passed=not failed,

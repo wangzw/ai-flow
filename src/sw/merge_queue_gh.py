@@ -42,13 +42,19 @@ def process_merge_queue_gh(
     open_prs = repo.get_pulls(state="open")
     queued = [pr for pr in open_prs if _has_label(pr, QUEUE_LABEL)]
     if not queued:
+        print("[merge_queue] queue empty — nothing to do", flush=True)
         return 0
 
     queued_sorted = sorted(
         queued, key=lambda p: (getattr(p, "created_at", ""), getattr(p, "number", 0))
     )
     head = queued_sorted[0]
+    print(
+        f"[merge_queue] {len(queued)} queued; popping FIFO head PR #{head.number}",
+        flush=True,
+    )
 
+    print(f"[merge_queue] re-running reviewer matrix on PR #{head.number}...", flush=True)
     result = reviewer(
         mr_iid=head.number,
         project_path=repo.full_name,
@@ -56,6 +62,10 @@ def process_merge_queue_gh(
     )
 
     if not result.all_passed:
+        print(
+            f"[merge_queue] re-review FAILED ({result.failed_dimensions}); dequeueing",
+            flush=True,
+        )
         head.remove_from_labels(QUEUE_LABEL)
         issue_num = _extract_closing_issue_number(head.body)
         if issue_num is not None:
@@ -63,12 +73,13 @@ def process_merge_queue_gh(
             client.set_state_label(issue, "agent-working")
         return 1
 
-    # All pass — atomic rebase + merge via GitHub
+    print(f"[merge_queue] re-review PASSED; ff-merging PR #{head.number}...", flush=True)
     head.merge(
         merge_method="rebase",
         commit_title=f"Merge PR #{head.number}",
         delete_branch=True,
     )
+    print(f"[merge_queue] PR #{head.number} merged", flush=True)
 
     issue_num = _extract_closing_issue_number(head.body)
     if issue_num is not None:

@@ -3,6 +3,9 @@ name: AI Agent — Merge Queue
 on:
   pull_request:
     types: [labeled]
+  # Manual / programmatic trigger — secrets.GITHUB_TOKEN cannot fire pull_request
+  # events from other workflows (GitHub anti-loop), so we expose workflow_dispatch.
+  workflow_dispatch:
 
 jobs:
   dispatch:

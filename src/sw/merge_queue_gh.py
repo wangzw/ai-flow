@@ -1,15 +1,20 @@
 """Merge Queue processor for GitHub.
 
-Pops PRs labeled `merge-queued` in FIFO order, runs Reviewer matrix, and
-ff-merges via GitHub's atomic rebase-merge. Serialized at the workflow level
-via Actions `concurrency:` group (see .github/workflows/agent-merge-queue.yml).
+Pops PRs labeled `merge-queued` in FIFO order, runs Reviewer matrix on the
+PR head, and ff-merges via GitHub's atomic rebase-merge. Serialized at the
+workflow level via Actions `concurrency:` group (see .github/workflows/
+agent-merge-queue.yml).
 
 Spec: §6.2.
 """
 
+import os
 import re
+import tempfile
+from pathlib import Path
 from typing import Callable
 
+from sw.coder_gh import _clone_repo
 from sw.reviewer import run_review_matrix
 
 
@@ -54,11 +59,27 @@ def process_merge_queue_gh(
         flush=True,
     )
 
+    # Clone the PR's head branch so the reviewer has a real workspace.
+    workdir = Path(tempfile.mkdtemp(prefix=f"merge-queue-pr-{head.number}-"))
+    repo_path = workdir / "repo"
+    sw_git_token = os.environ.get("SW_GIT_TOKEN")
+    if sw_git_token:
+        clone_url = repo.clone_url.replace(
+            "https://", f"https://x-access-token:{sw_git_token}@", 1
+        )
+    else:
+        clone_url = getattr(repo, "ssh_url", None) or repo.clone_url
+    print(
+        f"[merge_queue] cloning PR head branch {head.head.ref} for re-review...",
+        flush=True,
+    )
+    _clone_repo(clone_url, repo_path, branch=head.head.ref)
+
     print(f"[merge_queue] re-running reviewer matrix on PR #{head.number}...", flush=True)
     result = reviewer(
         mr_iid=head.number,
         project_path=repo.full_name,
-        repo_path=None,
+        repo_path=repo_path,
     )
 
     if not result.all_passed:

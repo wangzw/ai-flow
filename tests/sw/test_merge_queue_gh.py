@@ -1,6 +1,15 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from sw.merge_queue_gh import process_merge_queue_gh
+
+
+@pytest.fixture(autouse=True)
+def _patch_clone_repo():
+    """Auto-patch _clone_repo so tests don't try real git clone."""
+    with patch("sw.merge_queue_gh._clone_repo", return_value=MagicMock()):
+        yield
 
 
 def _label(name: str):
@@ -15,6 +24,7 @@ def _pr(number, labels=("merge-queued",), body="Closes #5"):
     pr.labels = [_label(name) for name in labels]
     pr.body = body
     pr.created_at = "2026-04-01T00:00:00Z"
+    pr.head.ref = f"agent/issue-{number}"
     return pr
 
 

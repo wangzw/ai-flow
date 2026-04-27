@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from sw._subprocess_streaming import run_streaming_pty
+from sw._subprocess_streaming import run_streaming, run_streaming_pty
 
 
 class CopilotCliError(RuntimeError):
@@ -38,6 +38,7 @@ class CopilotCliClient:
         log_dir: Path | None = None,
         log_level: str = "debug",
         stream: bool = True,
+        use_pty: bool = False,
     ) -> CopilotCliResult:
         """Invoke `copilot` non-interactively with --prompt and --allow-all.
 
@@ -46,10 +47,17 @@ class CopilotCliClient:
         - `--allow-all` enables tools/paths/URLs (required for non-interactive)
         - `--log-dir` + `--log-level` capture full session logs
 
-        With `stream=True` (default), stdout/stderr are tee'd line-by-line to the
-        parent's console as they arrive AND captured for the result. With
-        `stream=False`, behaviour falls back to capture-only via `subprocess.run`
-        (kept for tests that patch `subprocess.run`).
+        Default mode (`stream=True, use_pty=False`): pipes + `stdbuf -oL -eL`.
+        Real-time output relies on `stdbuf` to force line-buffer the child.
+        Keeps stdout/stderr separate; no ANSI/TUI noise (copilot writes plain
+        text when stdout is a pipe).
+
+        `use_pty=True`: allocate a pseudo-TTY. Use this only if `stdbuf` is not
+        available (no Linux runner). PTY merges stdout/stderr and triggers TUI
+        output that we then sanitise.
+
+        `stream=False`: fall back to `subprocess.run` capture-only (for tests
+        that patch `subprocess.run`).
         """
         cmd = [self.executable, "--prompt", prompt, "--allow-all"]
         if log_dir is not None:
@@ -59,16 +67,23 @@ class CopilotCliClient:
         merged_env = {**os.environ, **(env or {})}
 
         if stream:
-            # PTY mode is the only reliable way to get real-time output from
-            # `copilot` on non-TTY environments like GitHub Actions runners.
-            # stdout and stderr are merged in PTY mode; stderr returned empty.
-            returncode, stdout, stderr = run_streaming_pty(
-                cmd,
-                cwd=cwd,
-                env=merged_env,
-                timeout=timeout,
-                stdout_prefix="[copilot] ",
-            )
+            if use_pty:
+                returncode, stdout, stderr = run_streaming_pty(
+                    cmd,
+                    cwd=cwd,
+                    env=merged_env,
+                    timeout=timeout,
+                    stdout_prefix="[copilot] ",
+                )
+            else:
+                returncode, stdout, stderr = run_streaming(
+                    cmd,
+                    cwd=cwd,
+                    env=merged_env,
+                    timeout=timeout,
+                    stdout_prefix="[copilot] ",
+                    stderr_prefix="[copilot:err] ",
+                )
         else:
             proc = subprocess.run(
                 cmd, cwd=cwd, env=merged_env, capture_output=True, text=True, timeout=timeout

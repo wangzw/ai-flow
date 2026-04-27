@@ -75,16 +75,32 @@ def test_run_with_log_dir_writes_artifacts(tmp_path: Path):
     assert (log_dir / "exit-code.txt").read_text() == "7"
 
 
-def test_run_streaming_path(tmp_path: Path):
-    """Default stream=True uses run_streaming_pty (patched here)."""
+def test_run_streaming_default_uses_pipes(tmp_path: Path):
+    """Default stream=True, use_pty=False uses run_streaming (pipes + stdbuf)."""
+    client = CopilotCliClient(executable="copilot")
+    with patch(
+        "sw.copilot_cli_client.run_streaming",
+        return_value=(0, "out", "err"),
+    ) as mock_run:
+        result = client.run(prompt="x", cwd=tmp_path)
+    assert result.returncode == 0
+    assert result.stdout == "out"
+    assert result.stderr == "err"
+    kwargs = mock_run.call_args.kwargs
+    assert kwargs["stdout_prefix"] == "[copilot] "
+    assert kwargs["stderr_prefix"] == "[copilot:err] "
+
+
+def test_run_streaming_use_pty(tmp_path: Path):
+    """use_pty=True opts into run_streaming_pty (merged stdout/stderr)."""
     client = CopilotCliClient(executable="copilot")
     with patch(
         "sw.copilot_cli_client.run_streaming_pty",
-        return_value=(0, "merged-stdout", ""),
+        return_value=(0, "merged", ""),
     ) as mock_pty:
-        result = client.run(prompt="x", cwd=tmp_path)
+        result = client.run(prompt="x", cwd=tmp_path, use_pty=True)
     assert result.returncode == 0
-    assert result.stdout == "merged-stdout"
+    assert result.stdout == "merged"
     assert result.stderr == ""
     kwargs = mock_pty.call_args.kwargs
     assert kwargs["stdout_prefix"] == "[copilot] "

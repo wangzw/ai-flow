@@ -76,15 +76,15 @@ def test_run_with_log_dir_writes_artifacts(tmp_path: Path):
 
 
 def test_run_streaming_path(tmp_path: Path):
-    """Default stream=True uses run_streaming helper (patched here)."""
+    """Default stream=True uses run_streaming_pty (patched here)."""
     client = CopilotCliClient(executable="copilot")
     with patch(
-        "sw.copilot_cli_client.run_streaming",
-        return_value=(0, "stdout-content", "stderr-content"),
-    ) as mock_stream:
+        "sw.copilot_cli_client.run_streaming_pty",
+        return_value=(0, "merged-stdout", ""),
+    ) as mock_pty:
         result = client.run(prompt="x", cwd=tmp_path)
     assert result.returncode == 0
-    assert result.stdout == "stdout-content"
-    assert result.stderr == "stderr-content"
-    args, kwargs = mock_stream.call_args
-    assert "[copilot] " == kwargs["stdout_prefix"]
+    assert result.stdout == "merged-stdout"
+    assert result.stderr == ""
+    kwargs = mock_pty.call_args.kwargs
+    assert kwargs["stdout_prefix"] == "[copilot] "

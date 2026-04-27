@@ -9,7 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from sw._subprocess_streaming import run_streaming
+from sw._subprocess_streaming import run_streaming_pty
 
 
 class CopilotCliError(RuntimeError):
@@ -59,13 +59,15 @@ class CopilotCliClient:
         merged_env = {**os.environ, **(env or {})}
 
         if stream:
-            returncode, stdout, stderr = run_streaming(
+            # PTY mode is the only reliable way to get real-time output from
+            # `copilot` on non-TTY environments like GitHub Actions runners.
+            # stdout and stderr are merged in PTY mode; stderr returned empty.
+            returncode, stdout, stderr = run_streaming_pty(
                 cmd,
                 cwd=cwd,
                 env=merged_env,
                 timeout=timeout,
                 stdout_prefix="[copilot] ",
-                stderr_prefix="[copilot:err] ",
             )
         else:
             proc = subprocess.run(

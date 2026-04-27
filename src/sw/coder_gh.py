@@ -144,14 +144,24 @@ def run_coder_gh(
                 success=False,
                 blocker={
                     "blocker_type": "subprocess_error",
-                    "stderr": cli_result.stderr[-2000:],
                     "returncode": cli_result.returncode,
+                    "stdout": (cli_result.stdout or "")[-2000:],
+                    "stderr": (cli_result.stderr or "")[-2000:],
+                    "cwd": str(repo_path),
+                    "branch": branch_name,
                 },
                 branch_name=branch_name,
             )
         return CoderResult(
             success=False,
-            blocker={"blocker_type": "no_result_marker"},
+            blocker={
+                "blocker_type": "no_result_marker",
+                "returncode": cli_result.returncode,
+                "stdout": (cli_result.stdout or "")[-2000:],
+                "stderr": (cli_result.stderr or "")[-2000:],
+                "cwd": str(repo_path),
+                "branch": branch_name,
+            },
             branch_name=branch_name,
         )
 

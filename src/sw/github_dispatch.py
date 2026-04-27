@@ -92,25 +92,46 @@ def cmd_issue_labeled() -> int:
     if coder_result.success:
         return 0
     # Coder blocker → post needs-human comment, transition state
-    blocker = coder_result.blocker or {}
+    client.comment_on_issue(issue, _format_blocker_comment(coder_result.blocker))
+    client.set_state_label(issue, "needs-human")
+    return 0
+
+
+def _format_blocker_comment(blocker: dict | None) -> str:
+    """Build a verbose, human-readable needs-human comment from a Coder blocker dict."""
+    blocker = blocker or {}
     blocker_type = blocker.get("blocker_type", "unknown")
-    prose_lines = [f"Coder 阻塞：{blocker_type}"]
-    if "stderr" in blocker:
-        prose_lines.append(f"\nstderr (last 2KB):\n```\n{blocker['stderr']}\n```")
+    prose_lines = [f"Coder 阻塞：**{blocker_type}**"]
+
+    if "returncode" in blocker:
+        prose_lines.append(f"\n- returncode: `{blocker['returncode']}`")
+    if "branch" in blocker:
+        prose_lines.append(f"- branch: `{blocker['branch']}`")
+    if "cwd" in blocker:
+        prose_lines.append(f"- cwd: `{blocker['cwd']}`")
     if "reason" in blocker:
-        prose_lines.append(f"\nreason: {blocker['reason']}")
-    comment = build_needs_human_comment(
+        prose_lines.append(f"- reason: {blocker['reason']}")
+
+    stdout = blocker.get("stdout") or ""
+    stderr = blocker.get("stderr") or ""
+    if stdout.strip():
+        prose_lines.append(f"\n**stdout (last 2KB)**:\n```\n{stdout.strip()}\n```")
+    if stderr.strip():
+        prose_lines.append(f"\n**stderr (last 2KB)**:\n```\n{stderr.strip()}\n```")
+    if not stdout.strip() and not stderr.strip() and "returncode" in blocker:
+        prose_lines.append(
+            "\n_(stdout 和 stderr 均为空 — CLI 静默退出非零，常见原因：认证失败/未配置)_"
+        )
+
+    return build_needs_human_comment(
         prose="\n".join(prose_lines),
         agent_state={"stage": "coder", "blocker_type": blocker_type},
         decision={
-            "question": blocker.get("question", "请人工决策"),
+            "question": blocker.get("question", "请检查 stdout/stderr，修复后回复 /agent resume"),
             "options": blocker.get("options", []),
             "custom_allowed": True,
         },
     )
-    client.comment_on_issue(issue, comment)
-    client.set_state_label(issue, "needs-human")
-    return 0
 
 
 def cmd_comment_created() -> int:
@@ -134,20 +155,7 @@ def cmd_comment_created() -> int:
         coder_result = run_coder_gh(repo=repo, issue_number=issue.number, issue_title=issue.title)
         if coder_result.success:
             return 0
-        blocker = coder_result.blocker or {}
-        comment = build_needs_human_comment(
-            prose=f"Coder 再次阻塞：{blocker.get('blocker_type', 'unknown')}",
-            agent_state={
-                "stage": "coder",
-                "blocker_type": blocker.get("blocker_type", "unknown"),
-            },
-            decision={
-                "question": blocker.get("question", "请人工决策"),
-                "options": blocker.get("options", []),
-                "custom_allowed": True,
-            },
-        )
-        client.comment_on_issue(issue, comment)
+        client.comment_on_issue(issue, _format_blocker_comment(coder_result.blocker))
         client.set_state_label(issue, "needs-human")
     return 0
 

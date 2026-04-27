@@ -135,14 +135,24 @@ def run_coder(
                 success=False,
                 blocker={
                     "blocker_type": "subprocess_error",
-                    "stderr": cc_result.stderr[-2000:],
                     "returncode": cc_result.returncode,
+                    "stdout": (cc_result.stdout or "")[-2000:],
+                    "stderr": (cc_result.stderr or "")[-2000:],
+                    "cwd": str(repo_path),
+                    "branch": branch_name,
                 },
                 branch_name=branch_name,
             )
         return CoderResult(
             success=False,
-            blocker={"blocker_type": "no_result_marker"},
+            blocker={
+                "blocker_type": "no_result_marker",
+                "returncode": cc_result.returncode,
+                "stdout": (cc_result.stdout or "")[-2000:],
+                "stderr": (cc_result.stderr or "")[-2000:],
+                "cwd": str(repo_path),
+                "branch": branch_name,
+            },
             branch_name=branch_name,
         )
 

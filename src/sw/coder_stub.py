@@ -25,9 +25,7 @@ def run_coder(*, project, issue_iid: int, issue_title: str) -> CoderResult:
     project.branches.create({"branch": branch_name, "ref": base})
 
     timestamp = datetime.now(timezone.utc).isoformat()
-    content = (
-        f"# Agent Log\n\n- {timestamp}: stub coder ran for issue #{issue_iid}\n"
-    )
+    content = f"# Agent Log\n\n- {timestamp}: stub coder ran for issue #{issue_iid}\n"
     project.commits.create(
         {
             "branch": branch_name,

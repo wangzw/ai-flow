@@ -1,4 +1,3 @@
-
 import gitlab
 
 AGENT_LABEL_PREFIX = "agent-"

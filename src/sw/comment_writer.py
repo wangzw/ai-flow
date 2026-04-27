@@ -13,9 +13,7 @@ _TEMPLATE = """## 🛑 需要人类决策
 """
 
 
-def build_needs_human_comment(
-    *, prose: str, agent_state: dict, decision: dict
-) -> str:
+def build_needs_human_comment(*, prose: str, agent_state: dict, decision: dict) -> str:
     """Build a double-layer needs-human comment per spec §4.1."""
     yaml = YAML()
     yaml.default_flow_style = False

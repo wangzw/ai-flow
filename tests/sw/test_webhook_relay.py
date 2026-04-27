@@ -1,4 +1,3 @@
-
 import pytest
 
 from sw.webhook_relay import create_app

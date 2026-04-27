@@ -36,7 +36,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--project", required=True, help="GitLab project path, e.g. 'group/repo'")
     parser.add_argument("--config", default="config/labels.yaml")
-    parser.add_argument("--gitlab-url", default=os.environ.get("CI_SERVER_URL", "https://gitlab.com"))
+    parser.add_argument(
+        "--gitlab-url", default=os.environ.get("CI_SERVER_URL", "https://gitlab.com")
+    )
     parser.add_argument("--token", default=os.environ.get("GITLAB_API_TOKEN"))
     args = parser.parse_args(argv)
 

@@ -42,9 +42,7 @@ class StateMachine:
     def transition(self, event: str) -> None:
         nxt = next_state_for_event(self.current, event)
         if nxt is None:
-            raise TransitionError(
-                f"Invalid event {event!r} from state {self.current!r}"
-            )
+            raise TransitionError(f"Invalid event {event!r} from state {self.current!r}")
         self.current = nxt
 
     def is_terminal(self) -> bool:

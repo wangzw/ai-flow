@@ -1,7 +1,7 @@
 from typing import Callable
 
 from sw.ac_validator import validate_ac
-from sw.coder_stub import run_coder
+from sw.coder_fake import run_coder
 from sw.comment_writer import build_needs_human_comment
 
 

@@ -1,6 +1,6 @@
 from typing import Callable
 
-from sw.coder_stub import run_coder
+from sw.coder_fake import run_coder
 from sw.comment_parser import extract_agent_command
 from sw.state_machine import STATES, next_state_for_event
 

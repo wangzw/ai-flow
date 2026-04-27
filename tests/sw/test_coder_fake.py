@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from sw.coder_stub import CoderResult, run_coder
+from sw.coder_fake import CoderResult, run_coder
 
 
 def test_run_coder_creates_branch_and_mr():

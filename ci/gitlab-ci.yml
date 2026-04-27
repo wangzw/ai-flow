@@ -1,0 +1,74 @@
+stages:
+  - dispatch
+
+# Common defaults
+default:
+  image: python:3.11-slim
+  before_script:
+    - pip install --quiet python-gitlab ruamel.yaml
+    - pip install --quiet -e "git+${SW_FRAMEWORK_GIT_URL}@${SW_FRAMEWORK_REF:-main}#egg=software-workflow"
+
+# Issue events: triggered by issue Webhook (or a manual scheduler)
+# We expect the dispatcher to set CI_TRIGGERED_EVENT and SW_ISSUE_IID/SW_LABEL_ADDED.
+issue_event:
+  stage: dispatch
+  rules:
+    - if: '$CI_TRIGGERED_EVENT == "issue_label_added"'
+  resource_group: "agent-issue-${SW_ISSUE_IID}"
+  script:
+    - |
+      python - <<'PY'
+      import os
+      from sw.gitlab_client import GitLabClient
+      from sw.handlers.issue_handler import handle_issue_event
+      gl = GitLabClient.from_env(url=os.environ["CI_SERVER_URL"], token=os.environ["GITLAB_API_TOKEN"])
+      project = gl.get_project(os.environ["CI_PROJECT_PATH"])
+      handle_issue_event(
+          project=project,
+          issue_iid=int(os.environ["SW_ISSUE_IID"]),
+          action="label_added",
+          label=os.environ["SW_LABEL_ADDED"],
+          client=gl,
+      )
+      PY
+
+comment_event:
+  stage: dispatch
+  rules:
+    - if: '$CI_TRIGGERED_EVENT == "issue_note_added"'
+  resource_group: "agent-issue-${SW_ISSUE_IID}"
+  script:
+    - |
+      python - <<'PY'
+      import os
+      from sw.gitlab_client import GitLabClient
+      from sw.handlers.comment_handler import handle_comment_event
+      gl = GitLabClient.from_env(url=os.environ["CI_SERVER_URL"], token=os.environ["GITLAB_API_TOKEN"])
+      project = gl.get_project(os.environ["CI_PROJECT_PATH"])
+      handle_comment_event(
+          project=project,
+          issue_iid=int(os.environ["SW_ISSUE_IID"]),
+          comment_body=os.environ["SW_COMMENT_BODY"],
+          client=gl,
+      )
+      PY
+
+mr_ready_event:
+  stage: dispatch
+  rules:
+    - if: '$CI_TRIGGERED_EVENT == "mr_ready"'
+  resource_group: "agent-mr-${SW_MR_IID}"
+  script:
+    - |
+      python - <<'PY'
+      import os
+      from sw.gitlab_client import GitLabClient
+      from sw.handlers.mr_handler import handle_mr_ready
+      gl = GitLabClient.from_env(url=os.environ["CI_SERVER_URL"], token=os.environ["GITLAB_API_TOKEN"])
+      project = gl.get_project(os.environ["CI_PROJECT_PATH"])
+      handle_mr_ready(
+          project=project,
+          mr_iid=int(os.environ["SW_MR_IID"]),
+          client=gl,
+      )
+      PY

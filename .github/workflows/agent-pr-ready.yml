@@ -40,6 +40,25 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_PR_NUMBER: ${{ github.event.pull_request.number }}
-          # Reviewer runs in the runner's checked-out workspace.
           SW_REPO_PATH: ${{ github.workspace }}
         run: python -m sw.github_dispatch pr-ready
+
+      - name: Collect reviewer artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          for d in .copilot-logs .review; do
+            if [ -d "${{ github.workspace }}/$d" ]; then
+              cp -r "${{ github.workspace }}/$d" "artifacts/$d" 2>/dev/null || true
+            fi
+          done
+          ls -la artifacts/ || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reviewer-pr-${{ github.event.pull_request.number }}-run-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7

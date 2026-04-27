@@ -140,10 +140,12 @@ def run_coder_gh(
     prompt = _PROMPT_TEMPLATE.format(cwd=str(repo_path), title=issue_title, body=body)
 
     print("[coder] invoking copilot CLI (this is the slow part)...", flush=True)
+    log_dir = repo_path / ".copilot-logs" / "coder"
     t0 = time.monotonic()
-    cli_result = cli.run(prompt=prompt, cwd=repo_path)
+    cli_result = cli.run(prompt=prompt, cwd=repo_path, log_dir=log_dir)
     print(
-        f"[coder] copilot exited rc={cli_result.returncode} in {time.monotonic() - t0:.1f}s",
+        f"[coder] copilot exited rc={cli_result.returncode} in {time.monotonic() - t0:.1f}s "
+        f"(logs: {log_dir})",
         flush=True,
     )
 

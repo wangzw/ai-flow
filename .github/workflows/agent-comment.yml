@@ -41,3 +41,24 @@ jobs:
           SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
           SW_COMMENT_BODY: ${{ github.event.comment.body }}
         run: python -m sw.github_dispatch comment-created
+
+      - name: Collect agent artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          for d in /tmp/agent-issue-*/repo/.copilot-logs /tmp/agent-issue-*/repo/.agent; do
+            if [ -d "$d" ]; then
+              dest="artifacts/$(basename $(dirname $(dirname $d)))-$(basename $d)"
+              cp -r "$d" "$dest" 2>/dev/null || true
+            fi
+          done
+          ls -la artifacts/ || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-comment-${{ github.event.issue.number }}-run-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7

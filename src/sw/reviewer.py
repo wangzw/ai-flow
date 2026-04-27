@@ -124,7 +124,8 @@ def _review_one(
     role = _DIMENSION_PROMPTS[dim]
     prompt = _PROMPT_ENVELOPE.format(role=role, cwd=str(repo_path), dim=dim)
 
-    cc_result = claude.run(prompt=prompt, cwd=repo_path)
+    log_dir = repo_path / ".copilot-logs" / f"reviewer-{dim}"
+    cc_result = claude.run(prompt=prompt, cwd=repo_path, log_dir=log_dir)
     if cc_result.returncode != 0:
         return "FAIL", f"subprocess error (rc={cc_result.returncode})"
 
@@ -234,12 +235,13 @@ def run_review_matrix(
         f"[reviewer] combined mode: 1 CLI call for {len(MUST_DIMENSIONS)} dims on MR #{mr_iid}",
         flush=True,
     )
+    log_dir = repo_path / ".copilot-logs" / "reviewer-combined"
     t0 = time.monotonic()
     prompt = _COMBINED_PROMPT_TEMPLATE.format(cwd=str(repo_path), mr_iid=mr_iid, base=base)
-    cli_result = claude.run(prompt=prompt, cwd=repo_path)
+    cli_result = claude.run(prompt=prompt, cwd=repo_path, log_dir=log_dir)
     elapsed = time.monotonic() - t0
     print(
-        f"[reviewer] CLI exited rc={cli_result.returncode} in {elapsed:.1f}s",
+        f"[reviewer] CLI exited rc={cli_result.returncode} in {elapsed:.1f}s (logs: {log_dir})",
         flush=True,
     )
 

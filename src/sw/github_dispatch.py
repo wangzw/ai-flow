@@ -26,11 +26,16 @@ API I/O.
 
 import os
 import sys
+from pathlib import Path
 
 from sw.ac_validator import validate_ac
+from sw.coder_gh import run_coder_gh
 from sw.comment_parser import extract_agent_command
 from sw.comment_writer import build_needs_human_comment
+from sw.copilot_cli_client import CopilotCliClient
 from sw.github_client import GitHubClient
+from sw.merge_queue_gh import process_merge_queue_gh
+from sw.reviewer import run_review_matrix
 from sw.state_machine import STATES, next_state_for_event
 
 
@@ -82,9 +87,25 @@ def cmd_issue_labeled() -> int:
         return 0
 
     client.set_state_label(issue, "agent-working")
-    # Real Coder dispatch is platform-specific (uses copilot CLI + PyGithub idioms).
-    # See coder.py for the Claude Code/GitLab analog. Future plan will provide coder_gh.py.
-    print(f"[github] dispatched coder for issue #{issue.number} (placeholder)")
+    coder_result = run_coder_gh(repo=repo, issue_number=issue.number, issue_title=issue.title)
+    if coder_result.success:
+        return 0
+    # Coder blocker → post needs-human comment, transition state
+    blocker = coder_result.blocker or {}
+    comment = build_needs_human_comment(
+        prose=f"Coder 阻塞：{blocker.get('blocker_type', 'unknown')}",
+        agent_state={
+            "stage": "coder",
+            "blocker_type": blocker.get("blocker_type", "unknown"),
+        },
+        decision={
+            "question": blocker.get("question", "请人工决策"),
+            "options": blocker.get("options", []),
+            "custom_allowed": True,
+        },
+    )
+    client.comment_on_issue(issue, comment)
+    client.set_state_label(issue, "needs-human")
     return 0
 
 
@@ -106,21 +127,60 @@ def cmd_comment_created() -> int:
 
     client.set_state_label(issue, next_label)
     if cmd in ("resume", "retry"):
-        print(f"[github] dispatched coder for issue #{issue.number} (resume/retry placeholder)")
+        coder_result = run_coder_gh(repo=repo, issue_number=issue.number, issue_title=issue.title)
+        if coder_result.success:
+            return 0
+        blocker = coder_result.blocker or {}
+        comment = build_needs_human_comment(
+            prose=f"Coder 再次阻塞：{blocker.get('blocker_type', 'unknown')}",
+            agent_state={
+                "stage": "coder",
+                "blocker_type": blocker.get("blocker_type", "unknown"),
+            },
+            decision={
+                "question": blocker.get("question", "请人工决策"),
+                "options": blocker.get("options", []),
+                "custom_allowed": True,
+            },
+        )
+        client.comment_on_issue(issue, comment)
+        client.set_state_label(issue, "needs-human")
     return 0
 
 
 def cmd_pr_ready() -> int:
-    """Handle pull_request.ready_for_review event. Future: invoke reviewer matrix."""
+    """Handle pull_request.ready_for_review event: run reviewer matrix, enqueue if pass."""
     pr_number = int(os.environ["SW_PR_NUMBER"])
-    print(f"[github] pr ready #{pr_number} — reviewer matrix dispatch placeholder")
-    # Future: clone + run sw.reviewer.run_review_matrix; on all-pass add `merge-queued` label.
+    client = _client()
+    repo = _repo(client)
+    pr = repo.get_pull(pr_number)
+
+    # In GitHub Actions, the repo is already checked out by actions/checkout.
+    # SW_REPO_PATH overrides the working directory; default to CWD.
+    repo_path = Path(os.environ.get("SW_REPO_PATH", "."))
+
+    cli = CopilotCliClient()
+    result = run_review_matrix(
+        mr_iid=pr_number,
+        project_path=repo.full_name,
+        claude=cli,
+        repo_path=repo_path,
+    )
+
+    if result.all_passed:
+        if not any(lbl.name == "merge-queued" for lbl in pr.labels):
+            pr.add_to_labels("merge-queued")
+        return 0
+    # Fail: do not merge. Future enhancement could trigger Coder fix loop.
     return 0
 
 
 def cmd_merge_queue() -> int:
-    """Process the merge queue. Future: invoke process_merge_queue with GitHub adapter."""
-    print("[github] merge queue placeholder")
+    """Process the merge queue."""
+    client = _client()
+    repo = _repo(client)
+    n = process_merge_queue_gh(repo=repo, client=client)
+    print(f"[github] processed {n} PR(s) from merge queue")
     return 0
 
 

@@ -74,22 +74,40 @@ def _maybe_trigger_note(payload: dict, project_path: str) -> bool:
 
 
 def _maybe_trigger_mr(payload: dict, project_path: str) -> bool:
+    obj = payload.get("object_attributes", {})
+    iid = obj.get("iid")
     changes = payload.get("changes", {})
+
+    # Case 1: Draft → Ready transition
     draft = changes.get("draft") or changes.get("work_in_progress")
-    if not draft:
-        return False
-    if not (draft.get("previous") is True and draft.get("current") is False):
-        return False
-    iid = payload["object_attributes"]["iid"]
-    _trigger_pipeline(
-        project_path=project_path,
-        ref=payload["project"].get("default_branch", "main"),
-        variables={
-            "CI_TRIGGERED_EVENT": "mr_ready",
-            "SW_MR_IID": str(iid),
-        },
-    )
-    return True
+    if draft and draft.get("previous") is True and draft.get("current") is False:
+        _trigger_pipeline(
+            project_path=project_path,
+            ref=payload["project"].get("default_branch", "main"),
+            variables={
+                "CI_TRIGGERED_EVENT": "mr_ready",
+                "SW_MR_IID": str(iid),
+            },
+        )
+        return True
+
+    # Case 2: merge-queued label added
+    label_change = changes.get("labels")
+    if label_change:
+        prev = {item["title"] for item in label_change.get("previous", [])}
+        curr = {item["title"] for item in label_change.get("current", [])}
+        if "merge-queued" in (curr - prev):
+            _trigger_pipeline(
+                project_path=project_path,
+                ref=payload["project"].get("default_branch", "main"),
+                variables={
+                    "CI_TRIGGERED_EVENT": "mr_merge_queued",
+                    "SW_MR_IID": str(iid),
+                },
+            )
+            return True
+
+    return False
 
 
 def _trigger_pipeline(*, project_path: str, ref: str, variables: dict[str, str]) -> None:

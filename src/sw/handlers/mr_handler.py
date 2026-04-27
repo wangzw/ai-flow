@@ -28,16 +28,8 @@ def handle_mr_ready(
         # MVP: leave for future "agent-fixing"-style loop. For now, do nothing.
         return
 
-    # ff-merge — rebase before merge to keep linear history (per spec §5.5).
-    # KNOWN GAP (real Coder): GitLab's mr.rebase() is asynchronous and the
-    # subsequent merge() can race with it. With the stub Coder this never
-    # manifests because branches are tiny. To be addressed when the real
-    # Coder lands — poll mr.rebase_in_progress before calling merge().
-    mr.rebase()
-    mr.merge(merge_when_pipeline_succeeds=False, should_remove_source_branch=True)
-
-    issue_iid = _extract_closing_issue_iid(mr.description)
-    if issue_iid is None:
-        return
-    issue = project.issues.get(issue_iid)
-    client.set_state_label(issue, "agent-done")
+    # All MUST dimensions PASS — enqueue for serial merge processing.
+    # The merge queue (sw.merge_queue.process_merge_queue) handles rebase + re-review + ff-merge.
+    if "merge-queued" not in mr.labels:
+        mr.labels = [*mr.labels, "merge-queued"]
+        mr.save()

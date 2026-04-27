@@ -75,3 +75,20 @@ mr_ready_event:
           client=gl,
       )
       PY
+
+merge_queue_event:
+  stage: dispatch
+  rules:
+    - if: '$CI_TRIGGERED_EVENT == "mr_merge_queued"'
+  resource_group: "production_merge_queue"
+  script:
+    - |
+      python - <<'PY'
+      import os
+      from sw.gitlab_client import GitLabClient
+      from sw.merge_queue import process_merge_queue
+      gl = GitLabClient.from_env(url=os.environ["CI_SERVER_URL"], token=os.environ["GITLAB_API_TOKEN"])
+      project = gl.get_project(os.environ["CI_PROJECT_PATH"])
+      n = process_merge_queue(project=project, client=gl)
+      print(f"Processed {n} MR(s) from merge queue")
+      PY

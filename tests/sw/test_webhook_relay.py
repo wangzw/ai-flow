@@ -141,3 +141,26 @@ def test_label_added_without_agent_ready_does_not_trigger(client, monkeypatch):
     resp = _post(client, payload)
     assert resp.status_code == 200
     assert called == []
+
+
+def test_mr_merge_queued_label_triggers_pipeline(client, monkeypatch):
+    triggered = {}
+    monkeypatch.setattr(
+        "sw.webhook_relay._trigger_pipeline",
+        lambda **kw: triggered.update(**kw),
+    )
+    payload = {
+        "object_kind": "merge_request",
+        "project": {"path_with_namespace": "g/r", "default_branch": "main"},
+        "object_attributes": {"iid": 100, "action": "update"},
+        "changes": {
+            "labels": {
+                "previous": [{"title": "bug"}],
+                "current": [{"title": "bug"}, {"title": "merge-queued"}],
+            }
+        },
+    }
+    resp = _post(client, payload)
+    assert resp.status_code == 200
+    assert triggered["variables"]["CI_TRIGGERED_EVENT"] == "mr_merge_queued"
+    assert triggered["variables"]["SW_MR_IID"] == "100"

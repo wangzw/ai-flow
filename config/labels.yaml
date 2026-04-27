@@ -18,3 +18,7 @@ labels:
   - name: agent-failed
     color: "#5D5D5D"
     description: "Agent 失败（终态：不可恢复）"
+
+  - name: merge-queued
+    color: "#6C757D"
+    description: "已通过 Reviewer 矩阵，等待串行入队合并"

@@ -79,7 +79,7 @@ def cmd_issue_labeled() -> int:
     label = os.environ.get("SW_LABEL_ADDED")
     print(f"[dispatch] label={label!r}", flush=True)
     if label != "agent-ready":
-        print(f"[dispatch] not agent-ready, exiting (rc=0)", flush=True)
+        print("[dispatch] not agent-ready, exiting (rc=0)", flush=True)
         return 0
 
     client = _client()

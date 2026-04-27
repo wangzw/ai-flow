@@ -1,13 +1,18 @@
-"""Real Reviewer Matrix: orchestrates Claude Code to audit an MR per spec §5.
+"""Real Reviewer Matrix: orchestrates Claude Code / Copilot CLI to audit an MR per spec §5.
 
-Single-Agent sequential mode (spec §5.3 implementation a): for each MUST
-dimension we invoke Claude Code with a dimension-specific prompt; each
-invocation writes a marker `.review/<dim>.yaml`. Results aggregate into
-ReviewResult.
+Single-call combined mode (default, fast): one CLI invocation evaluates all 7
+MUST dimensions sequentially within a single agent session. Output is one
+marker `.review/combined.yaml` listing all results. ~5x faster than per-dim
+calls because cold-start + codebase exploration happen once.
 
-Spec constraints:
+Per-dimension mode (legacy, kept for testing): one CLI invocation per dim,
+each writes its own `.review/<dim>.yaml`. Slower (~35 min for 7 dims).
+
+Mode selection: `run_review_matrix(combined=True)` is the default.
+
+Spec constraints (apply to both modes):
 - Reviewer reads AC + diff + tests + code comments only (NOT commit messages)
-- Different system prompts per dimension provide cross-dimension heterogeneity
+- Different roles per dimension via prompt sectioning
 - Coder vs Reviewer heterogeneity via distinct role prompts
 """
 
@@ -133,19 +138,166 @@ def _review_one(
     return status, str(marker.get("reason", ""))
 
 
+_COMBINED_PROMPT_TEMPLATE = """You are a senior code reviewer. Review the diff in this repo against the 7 MUST dimensions below.
+
+Project root: {cwd}
+MR #: {mr_iid}
+
+## What to read
+- AC block in the linked Issue body (use `gh issue view <N>` if needed; or look at the PR description for `Closes #N`)
+- The diff: `git diff origin/{base}..HEAD`
+- All test files added/modified
+- Code comments in modified files
+
+## What NOT to read
+Do NOT read git commit messages — they are explicitly off-limits per spec §5.3.
+
+## Dimensions (evaluate each independently)
+
+1. **ac_compliance** — Every AC item is implemented + has a test
+2. **test_quality** — Tests have non-empty assertions, are not tautologies, were not weakened
+3. **security** — OWASP top-10 risks (injection, auth, data exposure)
+4. **performance** — Regression vs baseline; if no baseline exists, PASS with reason "no baseline"
+5. **consistency** — Lint clean, naming/style/conventions follow project
+6. **documentation_sync** — Docs/README/comments consistent with code
+7. **migration_safety** — DB schema/data migrations safe + reversible; if no migration, PASS with reason "no migration"
+
+## Output
+
+Write ONE marker file `.review/combined.yaml` with this exact structure:
+
+  mkdir -p .review
+  cat > .review/combined.yaml <<'EOF'
+  results:
+    ac_compliance: PASS    # or FAIL
+    test_quality: PASS
+    security: PASS
+    performance: PASS
+    consistency: PASS
+    documentation_sync: PASS
+    migration_safety: PASS
+  reasons:
+    ac_compliance: <one-line reason>
+    test_quality: <one-line reason>
+    security: <one-line reason>
+    performance: <one-line reason>
+    consistency: <one-line reason>
+    documentation_sync: <one-line reason>
+    migration_safety: <one-line reason>
+  EOF
+
+Then exit. Be efficient — read each file once; do not re-explore the codebase per dimension.
+"""
+
+
+def _read_combined_marker(repo_path: Path) -> dict | None:
+    marker = repo_path / ".review" / "combined.yaml"
+    if not marker.exists():
+        return None
+    yaml = YAML(typ="safe")
+    try:
+        return yaml.load(StringIO(marker.read_text()))
+    except Exception:
+        return None
+
+
 def run_review_matrix(
     *,
     mr_iid: int,
     project_path: str,
     claude: ClaudeCodeClient | None = None,
     repo_path: Path | None = None,
+    combined: bool = True,
+    base: str = "main",
 ) -> ReviewResult:
-    """Run all MUST dimension reviews sequentially. Fail-closed on any error."""
+    """Run all MUST dimension reviews. Fail-closed on any error.
+
+    Default `combined=True`: ONE CLI invocation evaluates all 7 dimensions in
+    a single agent session. ~5x faster than per-dim calls (cold-start once).
+
+    Set `combined=False` for the legacy per-dim mode (kept for testing).
+    """
     import time
 
     claude = claude or ClaudeCodeClient()
     if repo_path is None:
         raise ValueError("repo_path is required for real reviewer")
+
+    if not combined:
+        return _run_per_dimension(
+            mr_iid=mr_iid, project_path=project_path, claude=claude, repo_path=repo_path
+        )
+
+    print(
+        f"[reviewer] combined mode: 1 CLI call for {len(MUST_DIMENSIONS)} dims on MR #{mr_iid}",
+        flush=True,
+    )
+    t0 = time.monotonic()
+    prompt = _COMBINED_PROMPT_TEMPLATE.format(cwd=str(repo_path), mr_iid=mr_iid, base=base)
+    cli_result = claude.run(prompt=prompt, cwd=repo_path)
+    elapsed = time.monotonic() - t0
+    print(
+        f"[reviewer] CLI exited rc={cli_result.returncode} in {elapsed:.1f}s",
+        flush=True,
+    )
+
+    if cli_result.returncode != 0:
+        results = dict.fromkeys(MUST_DIMENSIONS, "FAIL")
+        reasons = dict.fromkeys(MUST_DIMENSIONS, f"subprocess error rc={cli_result.returncode}")
+        return ReviewResult(
+            all_passed=False,
+            dimension_results=results,
+            failed_dimensions=list(MUST_DIMENSIONS),
+            reasons=reasons,
+        )
+
+    marker = _read_combined_marker(repo_path)
+    if marker is None or "results" not in marker:
+        results = dict.fromkeys(MUST_DIMENSIONS, "FAIL")
+        reasons = dict.fromkeys(MUST_DIMENSIONS, "no combined marker produced")
+        return ReviewResult(
+            all_passed=False,
+            dimension_results=results,
+            failed_dimensions=list(MUST_DIMENSIONS),
+            reasons=reasons,
+        )
+
+    raw_results = marker.get("results", {}) or {}
+    raw_reasons = marker.get("reasons", {}) or {}
+    dimension_results: dict[str, str] = {}
+    reasons: dict[str, str] = {}
+    failed: list[str] = []
+    for dim in MUST_DIMENSIONS:
+        status = str(raw_results.get(dim, "FAIL")).upper()
+        if status not in ("PASS", "FAIL"):
+            status = "FAIL"
+        dimension_results[dim] = status
+        reasons[dim] = str(raw_reasons.get(dim, ""))
+        glyph = "✓" if status == "PASS" else "✗"
+        print(f"[reviewer]   {glyph} {dim}: {status} — {reasons[dim]}", flush=True)
+        if status != "PASS":
+            failed.append(dim)
+
+    summary = "ALL PASSED" if not failed else f"FAILED on {failed}"
+    print(f"[reviewer] {summary}", flush=True)
+
+    return ReviewResult(
+        all_passed=not failed,
+        dimension_results=dimension_results,
+        failed_dimensions=failed,
+        reasons=reasons,
+    )
+
+
+def _run_per_dimension(
+    *,
+    mr_iid: int,
+    project_path: str,
+    claude: ClaudeCodeClient,
+    repo_path: Path,
+) -> ReviewResult:
+    """Legacy per-dimension mode — one CLI call per dim. Slower."""
+    import time
 
     dimension_results: dict[str, str] = {}
     reasons: dict[str, str] = {}
@@ -153,7 +305,7 @@ def run_review_matrix(
 
     total = len(MUST_DIMENSIONS)
     print(
-        f"[reviewer] starting matrix: {total} dimensions on MR #{mr_iid} ({project_path})",
+        f"[reviewer] per-dim mode: {total} dimensions on MR #{mr_iid} ({project_path})",
         flush=True,
     )
     overall_start = time.monotonic()
@@ -165,18 +317,16 @@ def run_review_matrix(
         elapsed = time.monotonic() - t0
         dimension_results[dim] = status
         reasons[dim] = reason
-        marker = "✓" if status == "PASS" else "✗"
+        glyph = "✓" if status == "PASS" else "✗"
         print(
-            f"[reviewer {idx}/{total}] {dim}: {marker} {status} ({elapsed:.1f}s) — {reason}",
+            f"[reviewer {idx}/{total}] {dim}: {glyph} {status} ({elapsed:.1f}s) — {reason}",
             flush=True,
         )
         if status != "PASS":
             failed.append(dim)
 
-    total_elapsed = time.monotonic() - overall_start
-    summary = "ALL PASSED" if not failed else f"FAILED on {failed}"
     print(
-        f"[reviewer] matrix done in {total_elapsed:.1f}s: {summary}",
+        f"[reviewer] per-dim done in {time.monotonic() - overall_start:.1f}s",
         flush=True,
     )
 

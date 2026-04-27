@@ -34,11 +34,15 @@ class CopilotCliClient:
         timeout: int = 1800,
         check: bool = False,
     ) -> CopilotCliResult:
-        """Invoke `copilot` non-interactively, streaming prompt via stdin."""
+        """Invoke `copilot` non-interactively with --prompt and --allow-all.
+
+        Per `copilot --help`:
+        - `-p/--prompt <text>` runs in non-interactive mode
+        - `--allow-all` enables tools/paths/URLs (required for non-interactive)
+        """
         merged_env = {**os.environ, **(env or {})}
         proc = subprocess.run(
-            [self.executable],
-            input=prompt,
+            [self.executable, "--prompt", prompt, "--allow-all"],
             cwd=cwd,
             env=merged_env,
             capture_output=True,

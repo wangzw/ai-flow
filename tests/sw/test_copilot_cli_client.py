@@ -20,9 +20,12 @@ def test_run_passes_prompt_to_subprocess(tmp_path: Path):
     with patch("subprocess.run", return_value=_completed()) as mock_run:
         client.run(prompt="hello", cwd=tmp_path)
     args, kwargs = mock_run.call_args
-    assert args[0][0] == "copilot"
+    cmd = args[0]
+    assert cmd[0] == "copilot"
+    assert "--prompt" in cmd
+    assert "hello" in cmd
+    assert "--allow-all" in cmd
     assert kwargs["cwd"] == tmp_path
-    assert kwargs["input"] == "hello"
 
 
 def test_run_passes_env(tmp_path: Path):

@@ -106,8 +106,11 @@ def run_coder_gh(
     body = issue.body or ""
 
     repo_path = workdir / "repo"
+    # Prefer SSH for push-back. Local users typically have SSH keys configured;
+    # CI runners can override by setting up a credential helper for repo.clone_url.
+    clone_url = getattr(repo, "ssh_url", None) or repo.clone_url
     try:
-        local_repo = _clone_repo(repo.clone_url, repo_path, branch=base)
+        local_repo = _clone_repo(clone_url, repo_path, branch=base)
     except Exception as exc:
         return CoderResult(
             success=False,

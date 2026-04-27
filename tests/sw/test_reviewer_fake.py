@@ -1,4 +1,4 @@
-from sw.reviewer_stub import ReviewResult, run_review_matrix
+from sw.reviewer_fake import ReviewResult, run_review_matrix
 
 
 def test_stub_returns_all_pass():

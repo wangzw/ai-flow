@@ -1,7 +1,7 @@
 import re
 from typing import Callable
 
-from sw.reviewer_stub import run_review_matrix
+from sw.reviewer import run_review_matrix
 
 _CLOSES_RE = re.compile(r"closes\s+#(\d+)", re.IGNORECASE)
 

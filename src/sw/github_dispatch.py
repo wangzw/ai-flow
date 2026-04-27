@@ -93,12 +93,15 @@ def cmd_issue_labeled() -> int:
         return 0
     # Coder blocker → post needs-human comment, transition state
     blocker = coder_result.blocker or {}
+    blocker_type = blocker.get("blocker_type", "unknown")
+    prose_lines = [f"Coder 阻塞：{blocker_type}"]
+    if "stderr" in blocker:
+        prose_lines.append(f"\nstderr (last 2KB):\n```\n{blocker['stderr']}\n```")
+    if "reason" in blocker:
+        prose_lines.append(f"\nreason: {blocker['reason']}")
     comment = build_needs_human_comment(
-        prose=f"Coder 阻塞：{blocker.get('blocker_type', 'unknown')}",
-        agent_state={
-            "stage": "coder",
-            "blocker_type": blocker.get("blocker_type", "unknown"),
-        },
+        prose="\n".join(prose_lines),
+        agent_state={"stage": "coder", "blocker_type": blocker_type},
         decision={
             "question": blocker.get("question", "请人工决策"),
             "options": blocker.get("options", []),

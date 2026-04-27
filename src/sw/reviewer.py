@@ -138,13 +138,15 @@ def _review_one(
     return status, str(marker.get("reason", ""))
 
 
-_COMBINED_PROMPT_TEMPLATE = """You are a senior code reviewer. Review the diff in this repo against the 7 MUST dimensions below.
+_COMBINED_PROMPT_TEMPLATE = """You are a senior code reviewer. Review the diff in this repo
+against the 7 MUST dimensions below.
 
 Project root: {cwd}
 MR #: {mr_iid}
 
 ## What to read
-- AC block in the linked Issue body (use `gh issue view <N>` if needed; or look at the PR description for `Closes #N`)
+- AC block in the linked Issue body (use `gh issue view <N>`; or check the PR
+  description for `Closes #N`)
 - The diff: `git diff origin/{base}..HEAD`
 - All test files added/modified
 - Code comments in modified files
@@ -157,10 +159,10 @@ Do NOT read git commit messages — they are explicitly off-limits per spec §5.
 1. **ac_compliance** — Every AC item is implemented + has a test
 2. **test_quality** — Tests have non-empty assertions, are not tautologies, were not weakened
 3. **security** — OWASP top-10 risks (injection, auth, data exposure)
-4. **performance** — Regression vs baseline; if no baseline exists, PASS with reason "no baseline"
+4. **performance** — Regression vs baseline; if no baseline, PASS with reason "no baseline"
 5. **consistency** — Lint clean, naming/style/conventions follow project
 6. **documentation_sync** — Docs/README/comments consistent with code
-7. **migration_safety** — DB schema/data migrations safe + reversible; if no migration, PASS with reason "no migration"
+7. **migration_safety** — DB/data migration safe; if no migration, PASS with "no migration"
 
 ## Output
 

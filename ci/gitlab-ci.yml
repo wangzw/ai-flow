@@ -5,8 +5,11 @@ stages:
 default:
   image: python:3.11-slim
   before_script:
-    - pip install --quiet python-gitlab ruamel.yaml
+    - apt-get update -qq && apt-get install -y -qq curl git nodejs npm
+    - npm install -g @anthropic-ai/claude-code
+    - pip install --quiet python-gitlab ruamel.yaml gitpython flask
     - pip install --quiet -e "git+${SW_FRAMEWORK_GIT_URL}@${SW_FRAMEWORK_REF:-main}#egg=software-workflow"
+    - 'echo "ANTHROPIC_API_KEY length: ${#ANTHROPIC_API_KEY}"'
 
 # Issue events: triggered by issue Webhook (or a manual scheduler)
 # We expect the dispatcher to set CI_TRIGGERED_EVENT and SW_ISSUE_IID/SW_LABEL_ADDED.

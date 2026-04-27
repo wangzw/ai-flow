@@ -89,3 +89,23 @@ Verifies the end-to-end loop on GitLab CE.
 2. Within ~30 seconds, observe:
    - Label transitions to `agent-failed`.
    - No further automation runs on this Issue.
+
+### Path 4: Real Coder (happy)
+
+> **Prerequisite**: `ANTHROPIC_API_KEY` set in project CI/CD Variables.
+
+1. Create an Issue with a clear, narrowly-scoped AC, e.g.:
+
+   ```markdown
+   <!-- ac:start -->
+   - Add a function `hello()` in `src/greeting.py` that returns `"hello, world"`.
+   - Add a test asserting `hello() == "hello, world"`.
+   <!-- ac:end -->
+   ```
+
+2. Add `agent-ready` label.
+3. Within ~5–10 minutes (Claude Code time), observe:
+   - Agent branch contains a real commit implementing `hello()` and a test.
+   - Draft MR opens with summary in description.
+   - Reviewer matrix runs (still stub at this stage; replaced in Plan 3).
+4. If Coder gets blocked, observe `needs-human` label + structured comment with the blocker.

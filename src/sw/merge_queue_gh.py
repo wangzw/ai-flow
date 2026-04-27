@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Callable
 
 from sw.coder_gh import _clone_repo
+from sw.copilot_cli_client import CopilotCliClient
 from sw.reviewer import run_review_matrix
 
 
@@ -42,7 +43,10 @@ def process_merge_queue_gh(
     reviewer: Callable | None = None,
 ) -> int:
     """Pop the head of the merge queue and process it. Returns # processed (0 or 1)."""
-    reviewer = reviewer or (lambda **kw: run_review_matrix(**kw))
+    # Default reviewer uses Copilot CLI (this is the GitHub-specific module).
+    reviewer = reviewer or (
+        lambda **kw: run_review_matrix(claude=CopilotCliClient(), **kw)
+    )
 
     open_prs = repo.get_pulls(state="open")
     queued = [pr for pr in open_prs if _has_label(pr, QUEUE_LABEL)]

@@ -157,7 +157,11 @@ Do NOT read git commit messages — they are explicitly off-limits per spec §5.
 
 ## Dimensions (evaluate each independently)
 
-1. **ac_compliance** — Every AC item is implemented + has a test
+1. **ac_compliance** — Each literal AC item appears in the diff. Functional AC items
+   (those that describe runtime behavior) must also have a corresponding test that
+   exercises that behavior. Structural/file-presence AC items don't need a separate
+   "would-detect-removal" test — only PASS or FAIL based on whether the AC is
+   actually present in the diff. Do NOT invent extra requirements not in the AC.
 2. **test_quality** — Tests have non-empty assertions, are not tautologies, were not weakened
 3. **security** — OWASP top-10 risks (injection, auth, data exposure)
 4. **performance** — Regression vs baseline; if no baseline, PASS with reason "no baseline"

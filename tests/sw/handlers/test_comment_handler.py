@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock
 
-import pytest
-
 from sw.handlers.comment_handler import handle_comment_event
 
 

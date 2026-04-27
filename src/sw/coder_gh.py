@@ -126,19 +126,21 @@ def run_coder_gh(
     prompt = _PROMPT_TEMPLATE.format(cwd=str(repo_path), title=issue_title, body=body)
 
     cli_result = cli.run(prompt=prompt, cwd=repo_path)
-    if cli_result.returncode != 0:
-        return CoderResult(
-            success=False,
-            blocker={
-                "blocker_type": "subprocess_error",
-                "stderr": cli_result.stderr[-2000:],
-                "returncode": cli_result.returncode,
-            },
-            branch_name=branch_name,
-        )
 
+    # Marker file is the canonical signal. Trust it even if CLI exited non-zero
+    # (some CLIs return non-zero for benign post-task reasons after completing work).
     marker = _read_result(repo_path)
     if marker is None:
+        if cli_result.returncode != 0:
+            return CoderResult(
+                success=False,
+                blocker={
+                    "blocker_type": "subprocess_error",
+                    "stderr": cli_result.stderr[-2000:],
+                    "returncode": cli_result.returncode,
+                },
+                branch_name=branch_name,
+            )
         return CoderResult(
             success=False,
             blocker={"blocker_type": "no_result_marker"},

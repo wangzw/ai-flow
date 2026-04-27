@@ -80,3 +80,10 @@ def test_next_state_for_event_pure_function():
     assert next_state_for_event("agent-working", "merged") == "agent-done"
     assert next_state_for_event("needs-human", "command:resume") == "agent-working"
     assert next_state_for_event("agent-done", "agent_blocked") is None
+
+
+def test_is_terminal_recognizes_done_and_failed():
+    assert StateMachine(current="agent-done").is_terminal() is True
+    assert StateMachine(current="agent-failed").is_terminal() is True
+    assert StateMachine(current="agent-working").is_terminal() is False
+    assert StateMachine(current="needs-human").is_terminal() is False

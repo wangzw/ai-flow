@@ -51,3 +51,11 @@ def test_ac_with_only_whitespace_is_empty():
 <!-- ac:end -->"""
     result = validate_ac(body)
     assert result.valid is False
+
+
+def test_ac_markers_in_wrong_order_is_unpaired():
+    # ac:end appears before ac:start — DOTALL match fails
+    body = "<!-- ac:end --> stuff <!-- ac:start --> after"
+    result = validate_ac(body)
+    assert result.valid is False
+    assert "paired" in result.reason.lower() or "not" in result.reason.lower()

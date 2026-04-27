@@ -1,7 +1,7 @@
 from typing import Callable
 
 from sw.ac_validator import validate_ac
-from sw.coder_fake import run_coder
+from sw.coder import run_coder
 from sw.comment_writer import build_needs_human_comment
 
 
@@ -43,4 +43,21 @@ def handle_issue_event(
         return
 
     client.set_state_label(issue, "agent-working")
-    coder(project=project, issue_iid=issue_iid, issue_title=issue.title)
+    coder_result = coder(project=project, issue_iid=issue_iid, issue_title=issue.title)
+    if coder_result is None or coder_result.success:
+        return
+    blocker = coder_result.blocker or {}
+    comment = build_needs_human_comment(
+        prose=f"Coder 阻塞：{blocker.get('blocker_type', 'unknown')}",
+        agent_state={
+            "stage": "coder",
+            "blocker_type": blocker.get("blocker_type", "unknown"),
+        },
+        decision={
+            "question": blocker.get("question", "请人工决策"),
+            "options": blocker.get("options", []),
+            "custom_allowed": True,
+        },
+    )
+    client.comment_on_issue(issue, comment)
+    client.set_state_label(issue, "needs-human")

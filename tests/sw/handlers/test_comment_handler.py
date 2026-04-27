@@ -139,3 +139,27 @@ def test_start_from_no_label_transitions_to_ready():
     assert "agent-ready" in labels
     # start does not directly run coder; agent-ready label triggers issue_handler
     coder.assert_not_called()
+
+
+def test_resume_with_coder_blocker_transitions_to_needs_human():
+    project = MagicMock()
+    project.issues.get.return_value = _make_issue(["needs-human"])
+    client = MagicMock()
+    coder = MagicMock(
+        return_value=MagicMock(
+            success=False,
+            blocker={"blocker_type": "conflict", "question": "merge conflict"},
+        )
+    )
+
+    handle_comment_event(
+        project=project,
+        issue_iid=42,
+        comment_body="ok\n/agent resume",
+        client=client,
+        coder=coder,
+    )
+
+    set_calls = client.set_state_label.call_args_list
+    labels = [c.kwargs.get("new_label") or c.args[1] for c in set_calls]
+    assert labels == ["agent-working", "needs-human"]

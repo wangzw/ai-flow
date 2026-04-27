@@ -1,7 +1,8 @@
 from typing import Callable
 
-from sw.coder_fake import run_coder
+from sw.coder import run_coder
 from sw.comment_parser import extract_agent_command
+from sw.comment_writer import build_needs_human_comment
 from sw.state_machine import STATES, next_state_for_event
 
 
@@ -37,4 +38,21 @@ def handle_comment_event(
     # Side-effect: resume and retry re-dispatch the coder.
     if cmd in ("resume", "retry"):
         coder = coder or (lambda **kw: run_coder(**kw))
-        coder(project=project, issue_iid=issue_iid, issue_title=issue.title)
+        coder_result = coder(project=project, issue_iid=issue_iid, issue_title=issue.title)
+        if coder_result is None or coder_result.success:
+            return
+        blocker = coder_result.blocker or {}
+        comment = build_needs_human_comment(
+            prose=f"Coder 再次阻塞：{blocker.get('blocker_type', 'unknown')}",
+            agent_state={
+                "stage": "coder",
+                "blocker_type": blocker.get("blocker_type", "unknown"),
+            },
+            decision={
+                "question": blocker.get("question", "请人工决策"),
+                "options": blocker.get("options", []),
+                "custom_allowed": True,
+            },
+        )
+        client.comment_on_issue(issue, comment)
+        client.set_state_label(issue, "needs-human")

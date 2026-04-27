@@ -4,6 +4,7 @@ Mirror of `sw.coder.run_coder` but using PyGithub repo and Copilot CLI.
 Returns the same CoderResult dataclass.
 """
 
+import os
 import tempfile
 from dataclasses import dataclass
 from io import StringIO
@@ -106,9 +107,16 @@ def run_coder_gh(
     body = issue.body or ""
 
     repo_path = workdir / "repo"
-    # Prefer SSH for push-back. Local users typically have SSH keys configured;
-    # CI runners can override by setting up a credential helper for repo.clone_url.
-    clone_url = getattr(repo, "ssh_url", None) or repo.clone_url
+    # URL selection:
+    # - SW_GIT_TOKEN env (set in CI): build HTTPS URL with embedded token for clone+push
+    # - Else: use SSH URL (local users typically have SSH keys configured)
+    sw_git_token = os.environ.get("SW_GIT_TOKEN")
+    if sw_git_token:
+        https = repo.clone_url
+        prefix = "https://"
+        clone_url = https.replace(prefix, f"{prefix}x-access-token:{sw_git_token}@", 1)
+    else:
+        clone_url = getattr(repo, "ssh_url", None) or repo.clone_url
     try:
         local_repo = _clone_repo(clone_url, repo_path, branch=base)
     except Exception as exc:

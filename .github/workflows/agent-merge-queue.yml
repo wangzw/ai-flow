@@ -33,5 +33,6 @@ jobs:
       - name: Process merge queue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
         run: python -m sw.github_dispatch merge-queue

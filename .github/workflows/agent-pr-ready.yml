@@ -36,6 +36,10 @@ jobs:
       - name: Dispatch pr ready event
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Reviewer runs in the runner's checked-out workspace.
+          SW_REPO_PATH: ${{ github.workspace }}
         run: python -m sw.github_dispatch pr-ready

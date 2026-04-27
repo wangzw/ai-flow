@@ -1,12 +1,12 @@
-name: AI Agent — Comment Event
+name: AI Agent — Issue Event
 
 on:
-  issue_comment:
-    types: [created]
+  issues:
+    types: [labeled]
 
 jobs:
   dispatch:
-    if: contains(github.event.comment.body, '/agent ')
+    if: github.event.label.name == 'agent-ready'
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -32,10 +32,16 @@ jobs:
       - name: Install framework
         run: pip install -e ".[dev]"
 
-      - name: Dispatch comment event
+      - name: Dispatch issue event
         env:
+          # Used by PyGithub for API calls (issues/PR/labels).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Used by `git clone/push` over HTTPS in coder_gh._clone_repo / _push_branch.
+          SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Used by `copilot` CLI for non-interactive auth — must be a fine-grained PAT
+          # with "Copilot Requests" permission (set in repo Secrets as COPILOT_GITHUB_TOKEN).
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
-          SW_COMMENT_BODY: ${{ github.event.comment.body }}
-        run: python -m sw.github_dispatch comment-created
+          SW_LABEL_ADDED: ${{ github.event.label.name }}
+        run: python -m sw.github_dispatch issue-labeled

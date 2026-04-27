@@ -98,8 +98,8 @@ Verifies the end-to-end loop on GitLab CE.
 
    ```markdown
    <!-- ac:start -->
-   - Add a function `hello()` in `src/greeting.py` that returns `"hello, world"`.
-   - Add a test asserting `hello() == "hello, world"`.
+   - Add a function `hello()` in `scripts/hello.py` that returns `"hello, world"`.
+   - Add `tests/scripts/__init__.py` (empty) and `tests/scripts/test_hello.py` asserting `hello() == "hello, world"`.
    <!-- ac:end -->
    ```
 

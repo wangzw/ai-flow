@@ -1,5 +1,6 @@
 import re
 from io import StringIO
+
 from ruamel.yaml import YAML
 
 _YAML_FENCE_RE = re.compile(r"```yaml\s*\n(.*?)\n```", re.DOTALL)

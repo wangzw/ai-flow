@@ -1,0 +1,41 @@
+name: AI Agent — Comment Event
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  dispatch:
+    if: contains(github.event.comment.body, '/agent ')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    concurrency:
+      group: agent-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Install framework
+        run: pip install -e ".[dev]"
+
+      - name: Dispatch comment event
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_REPO: ${{ github.repository }}
+          SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SW_COMMENT_BODY: ${{ github.event.comment.body }}
+        run: python -m sw.github_dispatch comment-created

@@ -1,0 +1,41 @@
+name: AI Agent — PR Ready Event
+
+on:
+  pull_request:
+    types: [ready_for_review]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    concurrency:
+      group: agent-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Install framework
+        run: pip install -e ".[dev]"
+
+      - name: Dispatch pr ready event
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_REPO: ${{ github.repository }}
+          SW_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python -m sw.github_dispatch pr-ready

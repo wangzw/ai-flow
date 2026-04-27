@@ -1,0 +1,37 @@
+name: AI Agent — Merge Queue
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  dispatch:
+    if: github.event.label.name == 'merge-queued'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    # Single concurrent merge-queue job repository-wide.
+    concurrency:
+      group: production-merge-queue
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install framework
+        run: pip install -e ".[dev]"
+
+      - name: Process merge queue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_REPO: ${{ github.repository }}
+        run: python -m sw.github_dispatch merge-queue

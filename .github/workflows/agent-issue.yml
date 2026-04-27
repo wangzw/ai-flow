@@ -1,0 +1,41 @@
+name: AI Agent — Issue Event
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  dispatch:
+    if: github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: write
+    concurrency:
+      group: agent-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
+      - name: Install framework
+        run: pip install -e ".[dev]"
+
+      - name: Dispatch issue event
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_REPO: ${{ github.repository }}
+          SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SW_LABEL_ADDED: ${{ github.event.label.name }}
+        run: python -m sw.github_dispatch issue-labeled

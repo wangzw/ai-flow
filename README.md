@@ -41,3 +41,4 @@ Then file a `type:goal` Issue (using the goal template), label it
   → `needs-human`, never silent recovery.
 - **Three-stage escalation.** Reviewer iterations 1–2 auto-retry the
   Implementer; iteration 3 invokes Planner arbitration; beyond that, human.
+Hello, ai-flow!

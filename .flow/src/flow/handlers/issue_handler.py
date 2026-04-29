@@ -150,11 +150,19 @@ def _drive_to_completion(*, repo, goal_issue, gh: GitHubClient, cfg: Config,
             if child.state_label != "agent-working":
                 continue
             pr = _find_pr_for_task(repo, child.body)
-            if pr is None or pr.state != "open" or pr.draft:
+            if pr is None or pr.state != "open":
                 continue
             already_queued = any(lbl.name == "merge-queued" for lbl in pr.labels)
             if already_queued:
                 continue
+            if pr.draft:
+                try:
+                    pr.mark_ready_for_review()
+                    print(f"[drive] marked PR #{pr.number} ready for review",
+                          flush=True)
+                except Exception as exc:
+                    print(f"[drive] mark_ready_for_review failed: {exc}",
+                          flush=True)
             print(f"[drive] reviewing PR #{pr.number} for task #{child.issue.number}",
                   flush=True)
             review_pr(pr=pr, repo=repo, gh=gh, cfg=cfg)

@@ -1,0 +1,40 @@
+name: flow-comment
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: flow-comment-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: startsWith(github.event.comment.body, '/agent ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ./.flow
+      - name: Install Copilot CLI
+        run: |
+          npm install -g @github/copilot || npm install -g @githubnext/github-copilot-cli || true
+      - name: Dispatch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.SW_GIT_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SW_REPO: ${{ github.repository }}
+          SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SW_COMMENT_BODY: ${{ github.event.comment.body }}
+          SW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
+          PYTHONUNBUFFERED: "1"
+        run: python -m flow.coordinator comment-created

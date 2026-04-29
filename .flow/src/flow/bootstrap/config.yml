@@ -1,0 +1,52 @@
+version: 1
+platform: github
+
+models:
+  planner_cli: copilot
+  implementer_cli: copilot
+  reviewer_cli: copilot
+
+review:
+  max_iterations: 5
+  max_arbitrations: 2
+  dimensions:
+    must:
+      - spec_compliance
+      - test_quality
+      - security
+      - consistency
+      - migration_safety
+    may:
+      - performance
+      - documentation_sync
+
+blast_radius:
+  core_modules: []
+  migration_globs: ["migrations/", "*.sql"]
+
+retry:
+  model_5xx:   {max_attempts: 5, backoff: [30, 60, 120, 240, 480]}
+  rate_limit:  {max_total_seconds: 3600}
+  sandbox_oom: {max_attempts: 2}
+  tool_error:  {max_attempts: 3, backoff: [60, 120, 240]}
+  infra:       {max_attempts: 5, backoff: [30, 60, 120, 240, 480]}
+  quota:       {max_attempts: 0}
+
+throttle:
+  max_parallel_tasks: 5
+  goal_failure_threshold: 10
+
+# Whitelist of GitHub logins that may issue /agent commands (spec §10.4).
+# Empty list = no one. Add your maintainers here.
+authorized_users: []
+
+cost:
+  enable_tracking: true
+  estimate_tokens_when_unavailable: true
+  per_second_rate_usd: 0.0015
+
+channel_discipline:
+  reviewer_input_excludes:
+    - commit_message
+    - pr_description
+    - implementer_summary

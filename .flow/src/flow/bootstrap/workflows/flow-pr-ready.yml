@@ -1,0 +1,41 @@
+name: flow-pr-ready
+on:
+  pull_request:
+    types: [ready_for_review, opened, synchronize]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: flow-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ./.flow
+      - name: Install Copilot CLI
+        run: |
+          npm install -g @github/copilot || npm install -g @githubnext/github-copilot-cli || true
+      - name: Dispatch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.SW_GIT_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SW_REPO: ${{ github.repository }}
+          SW_PR_NUMBER: ${{ github.event.pull_request.number }}
+          SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
+          PYTHONUNBUFFERED: "1"
+        run: python -m flow.coordinator pr-ready

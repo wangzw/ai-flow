@@ -1,0 +1,56 @@
+name: flow-issue
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: flow-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: github.event.label.name == 'agent-ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ai-flow
+        run: pip install -e ./.flow
+
+      - name: Install Copilot CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/cli/cli/trunk/scripts/install.sh | sudo sh || true
+          gh auth status || true
+          # Copilot CLI binary install
+          npm install -g @githubnext/github-copilot-cli || true
+          which copilot || npm install -g @github/copilot || true
+
+      - name: Dispatch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.SW_GIT_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SW_REPO: ${{ github.repository }}
+          SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          SW_LABEL_ADDED: ${{ github.event.label.name }}
+          SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
+          PYTHONUNBUFFERED: "1"
+        run: python -m flow.coordinator issue-labeled
+
+      - name: Upload metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-metrics-issue-${{ github.event.issue.number }}-${{ github.run_id }}
+          path: .flow-metrics.jsonl
+          if-no-files-found: ignore

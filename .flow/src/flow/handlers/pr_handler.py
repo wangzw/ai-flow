@@ -36,7 +36,7 @@ def handle_pr_ready() -> int:
 
     pr_number = int(os.environ["SW_PR_NUMBER"])
     cfg = Config.load()
-    gh = GitHubClient.from_token(os.environ["GITHUB_TOKEN"])
+    gh = GitHubClient.from_env()
     repo = gh.get_repo(os.environ["SW_REPO"])
     pr = repo.get_pull(pr_number)
 

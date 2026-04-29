@@ -44,7 +44,7 @@ def cmd_merge_queue() -> int:
     from flow.clients.github import GitHubClient
     from flow.merge_queue import process_merge_queue
 
-    gh = GitHubClient.from_token(os.environ["GITHUB_TOKEN"])
+    gh = GitHubClient.from_env()
     repo = gh.get_repo(os.environ["SW_REPO"])
     n = process_merge_queue(repo=repo, client=gh)
     print(f"[dispatch] merge_queue processed {n}", flush=True)

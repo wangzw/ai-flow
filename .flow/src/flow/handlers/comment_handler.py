@@ -43,7 +43,7 @@ def handle_comment_created() -> int:
 
     emit(EVENTS.COMMAND_RECEIVED, command=cmd.name, actor=actor)
 
-    gh = GitHubClient.from_token(os.environ["GITHUB_TOKEN"])
+    gh = GitHubClient.from_env()
     repo = gh.get_repo(os.environ["SW_REPO"])
     issue = repo.get_issue(int(os.environ["SW_ISSUE_NUMBER"]))
 

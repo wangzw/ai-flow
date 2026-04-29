@@ -11,7 +11,7 @@ from flow.retry import is_due
 
 
 def handle_schedule() -> int:
-    gh = GitHubClient.from_token(os.environ["GITHUB_TOKEN"])
+    gh = GitHubClient.from_env()
     repo = gh.get_repo(os.environ["SW_REPO"])
 
     # Sweep agent-ready tasks whose failed_env.next_attempt has passed but

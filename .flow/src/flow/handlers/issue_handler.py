@@ -225,7 +225,7 @@ def handle_issue_labeled() -> int:
         return 0
 
     cfg = Config.load()
-    gh = GitHubClient.from_token(os.environ["GITHUB_TOKEN"])
+    gh = GitHubClient.from_env()
     repo = gh.get_repo(os.environ["SW_REPO"])
     issue = repo.get_issue(int(os.environ["SW_ISSUE_NUMBER"]))
 

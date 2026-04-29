@@ -22,32 +22,26 @@ Reviewer matrix + merge queue + slash commands all implemented. See
 ## Adopt ai-flow in another repository
 
 The bundled workflows run **inside the repository that is adopting ai-flow**.
-That matters because every workflow checks out the target repository and runs
-`pip install -e ./.flow`. In practice, adoption has two parts:
-
-1. install the `flow` CLI on your workstation so you can bootstrap the repo
-2. commit the ai-flow runtime (`.flow/pyproject.toml` and `.flow/src/`) plus
-   the generated workflow/config/template files into the target repository
-
-`flow init` handles the second part only partially: it writes the workflows,
-goal issue template, `.flow/config.yml`, and `.flow/prompts/`, but it does not
-copy the runtime package for you.
+Each workflow checks out the target repository and runs `pip install -e ./.flow`,
+so adoption means committing both the generated bootstrap files and the `.flow`
+runtime package into your repository.
 
 ### 1. Install the ai-flow CLI locally
 
-Install the package from this repository's `.flow` subdirectory:
+Install the CLI from this repository's `.flow` package:
 
 ```bash
 python -m pip install "ai-flow @ git+https://github.com/wangzw/ai-flow.git#subdirectory=.flow"
 ```
 
-That gives you the `flow` command locally without requiring any manual file
-copying into your target repository yet.
+This gives you the `flow` command locally so you can bootstrap a different
+repository.
 
-### 2. Bootstrap the target repository
+### 2. Bootstrap the target repository and vendor the runtime
 
-From the target repository root, run `flow init` and then vendor the runtime
-files that the generated workflows install from:
+From the target repository root, run `flow init`, then vendor the runtime from
+this repository with Git so the generated workflows have a local `./.flow`
+package to install:
 
 ```bash
 cd /path/to/target-repo
@@ -70,7 +64,8 @@ git checkout ai-flow-upstream/main -- .flow/pyproject.toml .flow/src
 
 The `git checkout ... -- .flow/pyproject.toml .flow/src` step vendors the same
 runtime package layout the workflows later expect when they run
-`pip install -e ./.flow`.
+`pip install -e ./.flow`. This keeps the setup reproducible without asking you
+to manually copy files one-by-one.
 
 Before you commit, edit `.flow/config.yml` for your repository. In particular,
 set `authorized_users` so `/agent ...` slash commands are accepted from your
@@ -95,7 +90,10 @@ the ai-flow label set, the committed `flow-*.yml` workflow files, and
 
 ### 4. GitHub Actions and runtime prerequisites
 
-The generated workflows assume the target repository has:
+The generated workflows already include the runtime bootstrap they need
+(`actions/checkout`, `actions/setup-python`, `actions/setup-node`, and
+`npm install -g @github/copilot`). The target repository still needs the
+following GitHub-side prerequisites:
 
 | Requirement | Why it is needed |
 | --- | --- |

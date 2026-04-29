@@ -25,17 +25,32 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ./.flow
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Install Copilot CLI
-        run: |
-          npm install -g @github/copilot || npm install -g @githubnext/github-copilot-cli || true
+        run: npm install -g @github/copilot
+      - name: Install ai-flow
+        run: pip install -e ./.flow
       - name: Dispatch
         env:
+          PYTHONUNBUFFERED: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SW_GIT_TOKEN: ${{ secrets.SW_GIT_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_PR_NUMBER: ${{ github.event.pull_request.number }}
           SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
-          PYTHONUNBUFFERED: "1"
         run: python -m flow.coordinator pr-ready
+
+      - name: Upload review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-pr-${{ github.event.pull_request.number }}-run-${{ github.run_id }}
+          path: |
+            /tmp/flow-review-pr-*/repo/.review
+            /tmp/flow-review-pr-*/repo/.flow-logs
+            .flow-metrics.jsonl
+          if-no-files-found: ignore
+          retention-days: 7

@@ -52,7 +52,7 @@ def handle_pr_ready() -> int:
     # Clone the PR head
     workdir = Path(tempfile.mkdtemp(prefix=f"flow-review-pr-{pr_number}-"))
     repo_path = workdir / "repo"
-    sw_git_token = os.environ.get("SW_GIT_TOKEN")
+    sw_git_token = os.environ.get("SW_GIT_TOKEN") or os.environ.get("COPILOT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
     if sw_git_token and repo.clone_url.startswith("https://"):
         clone_url = repo.clone_url.replace(
             "https://", f"https://x-access-token:{sw_git_token}@", 1

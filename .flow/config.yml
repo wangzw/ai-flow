@@ -38,7 +38,7 @@ throttle:
 
 # Whitelist of GitHub logins that may issue /agent commands (spec §10.4).
 # Empty list = no one. Add your maintainers here.
-authorized_users: []
+authorized_users: ["wangzw"]
 
 cost:
   enable_tracking: true

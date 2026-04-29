@@ -22,19 +22,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ./.flow
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Install Copilot CLI
-        run: |
-          npm install -g @github/copilot || npm install -g @githubnext/github-copilot-cli || true
+        run: npm install -g @github/copilot
+      - name: Install ai-flow
+        run: pip install -e ./.flow
       - name: Dispatch
         env:
+          PYTHONUNBUFFERED: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SW_GIT_TOKEN: ${{ secrets.SW_GIT_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
           SW_COMMENT_BODY: ${{ github.event.comment.body }}
           SW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
           SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
-          PYTHONUNBUFFERED: "1"
         run: python -m flow.coordinator comment-created

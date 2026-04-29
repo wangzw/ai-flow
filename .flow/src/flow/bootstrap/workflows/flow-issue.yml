@@ -24,33 +24,46 @@ jobs:
         with:
           python-version: "3.11"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Copilot CLI
+        run: npm install -g @github/copilot
+
       - name: Install ai-flow
         run: pip install -e ./.flow
 
-      - name: Install Copilot CLI
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/cli/cli/trunk/scripts/install.sh | sudo sh || true
-          gh auth status || true
-          # Copilot CLI binary install
-          npm install -g @githubnext/github-copilot-cli || true
-          which copilot || npm install -g @github/copilot || true
-
       - name: Dispatch
         env:
+          PYTHONUNBUFFERED: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SW_GIT_TOKEN: ${{ secrets.SW_GIT_TOKEN }}
+          SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
           SW_LABEL_ADDED: ${{ github.event.label.name }}
           SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
-          PYTHONUNBUFFERED: "1"
         run: python -m flow.coordinator issue-labeled
 
-      - name: Upload metrics
+      - name: Collect artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          for d in /tmp/flow-*/repo/.flow-logs /tmp/flow-*/repo/.agent /tmp/flow-*/repo/.review /tmp/flow-*/.flow; do
+            if [ -d "$d" ]; then
+              dest="artifacts/$(basename $(dirname $(dirname $d)))-$(basename $d)"
+              cp -r "$d" "$dest" 2>/dev/null || true
+            fi
+          done
+          [ -f .flow-metrics.jsonl ] && cp .flow-metrics.jsonl artifacts/ || true
+          ls -la artifacts/ || true
+
+      - name: Upload artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: flow-metrics-issue-${{ github.event.issue.number }}-${{ github.run_id }}
-          path: .flow-metrics.jsonl
-          if-no-files-found: ignore
+          name: flow-issue-${{ github.event.issue.number }}-run-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7

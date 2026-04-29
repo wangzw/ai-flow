@@ -175,7 +175,7 @@ def run_review_matrix(
         example_dims=example_dims,
     )
 
-    log_dir = repo_path / ".flow-logs" / f"reviewer-iter{iteration}"
+    log_dir = repo_path.parent / "host-logs" / f"reviewer-iter{iteration}"
     print(f"[reviewer] PR #{pr_number} iter={iteration} dims={enabled}", flush=True)
     t0 = time.monotonic()
     cli_result = client.run(prompt=prompt, cwd=repo_path, log_dir=log_dir)

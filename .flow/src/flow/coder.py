@@ -228,7 +228,9 @@ def run_implementer(
         siblings_yaml=_serialize_yaml(sibling_artifacts) if sibling_artifacts else "[]",
     ) + decision_block
 
-    log_dir = repo_path / ".flow-logs" / "implementer"
+    # Host-side logs live OUTSIDE repo_path so they survive even if the
+    # implementer wipes the repo workdir (e.g., `git clean -fdx`).
+    log_dir = workdir / "host-logs" / "implementer"
     t0 = time.monotonic()
     cli_result = client.run(prompt=prompt, cwd=repo_path, log_dir=log_dir)
     elapsed_ms = int((time.monotonic() - t0) * 1000)

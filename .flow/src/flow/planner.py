@@ -199,7 +199,7 @@ def run_planner(
     # Tell the planner where input is via an env var
     env = {"FLOW_PLANNER_WORKDIR": str(workdir)}
 
-    log_dir = repo_path / ".flow-logs" / "planner"
+    log_dir = workdir / "host-logs" / "planner"
     t0 = time.monotonic()
     cli_result = client.run(prompt=prompt, cwd=workdir, env=env, log_dir=log_dir)
     elapsed_ms = int((time.monotonic() - t0) * 1000)

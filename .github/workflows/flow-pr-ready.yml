@@ -56,6 +56,7 @@ jobs:
         with:
           name: flow-pr-${{ github.event.inputs.pr_number || github.event.pull_request.number }}-run-${{ github.run_id }}
           path: |
+            /tmp/flow-review-pr-*/host-logs
             /tmp/flow-review-pr-*/repo/.review
             /tmp/flow-review-pr-*/repo/.flow-logs
             .flow-metrics.jsonl

@@ -46,6 +46,9 @@ class CopilotCliClient:
         elapsed_ms = int((time.monotonic() - t0) * 1000)
 
         if log_dir is not None:
+            # Re-create in case the subprocess wiped the dir (e.g., LLM ran
+            # `git clean -fdx` or similar inside cwd).
+            log_dir.mkdir(parents=True, exist_ok=True)
             (log_dir / "copilot-stdout.log").write_text(proc.stdout or "")
             (log_dir / "copilot-stderr.log").write_text(proc.stderr or "")
             (log_dir / "exit-code.txt").write_text(str(proc.returncode))

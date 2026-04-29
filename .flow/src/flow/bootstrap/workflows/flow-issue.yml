@@ -53,7 +53,7 @@ jobs:
         if: always()
         run: |
           mkdir -p artifacts
-          for d in /tmp/flow-*/repo/.flow-logs /tmp/flow-*/repo/.agent /tmp/flow-*/repo/.review /tmp/flow-*/.flow; do
+          for d in /tmp/flow-*/host-logs /tmp/flow-*/repo/.flow-logs /tmp/flow-*/repo/.agent /tmp/flow-*/repo/.review /tmp/flow-*/.flow; do
             if [ -d "$d" ]; then
               dest="artifacts/$(basename $(dirname $(dirname $d)))-$(basename $d)"
               cp -r "$d" "$dest" 2>/dev/null || true

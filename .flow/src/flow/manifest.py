@@ -262,6 +262,50 @@ class TaskSpec:
         )
 
 
+def render_task_prose(*, task_id: str, goal_issue: int, spec: TaskSpec,
+                      deps: list[str] | None = None) -> str:
+    """Render a short human-readable summary of a task spec.
+
+    Goes after the YAML frontmatter so humans browsing the issue see the
+    purpose, acceptance criteria and steps without parsing YAML.
+    """
+    lines: list[str] = []
+    lines.append(f"## Task `{task_id}`")
+    lines.append("")
+    if goal_issue:
+        lines.append(f"Parent goal: #{goal_issue}")
+        lines.append("")
+    if spec.goal:
+        lines.append("### Goal")
+        lines.append(spec.goal.strip())
+        lines.append("")
+    qc = [str(c).strip() for c in (spec.quality_criteria or []) if str(c).strip()]
+    if qc:
+        lines.append("### Acceptance criteria")
+        for c in qc:
+            lines.append(f"- {c}")
+        lines.append("")
+    steps = spec.steps or []
+    if steps:
+        lines.append("### Steps")
+        for i, s in enumerate(steps, 1):
+            desc = ""
+            if isinstance(s, dict):
+                desc = str(s.get("description") or s.get("id") or "").strip()
+            else:
+                desc = str(s).strip()
+            if desc:
+                lines.append(f"{i}. {desc}")
+        lines.append("")
+    if deps:
+        lines.append("### Depends on")
+        lines.append(", ".join(f"`{d}`" for d in deps))
+        lines.append("")
+    lines.append("> _The YAML block above is machine-managed by ai-flow; "
+                 "do not edit it by hand._")
+    return "\n".join(lines).rstrip() + "\n"
+
+
 @dataclass
 class TaskBody:
     """Task Issue body (spec §4.4)."""

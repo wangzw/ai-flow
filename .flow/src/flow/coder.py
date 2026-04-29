@@ -300,12 +300,30 @@ def run_implementer(
     else:
         artifacts = (marker.get("artifacts") or {})
         summary = str(artifacts.get("summary") or "").strip()
-        body = (
-            "## Summary\n\n"
-            f"{summary or task_body.spec.goal}\n\n"
-            "## Closes\n\n"
-            f"Closes #{task_issue.number}\n"
-        )
+        spec = task_body.spec
+        body_parts: list[str] = []
+        body_parts.append("## Summary")
+        body_parts.append("")
+        body_parts.append(summary or spec.goal or task_issue.title)
+        body_parts.append("")
+        if spec.goal and (summary and summary != spec.goal):
+            body_parts.append("## Task goal")
+            body_parts.append("")
+            body_parts.append(spec.goal.strip())
+            body_parts.append("")
+        qc = [str(c).strip() for c in (spec.quality_criteria or []) if str(c).strip()]
+        if qc:
+            body_parts.append("## Acceptance criteria")
+            body_parts.append("")
+            for c in qc:
+                body_parts.append(f"- {c}")
+            body_parts.append("")
+        if task_body.goal_issue:
+            body_parts.append(f"Parent goal: #{task_body.goal_issue}")
+            body_parts.append("")
+        body_parts.append(f"Closes #{task_issue.number}")
+        body_parts.append("")
+        body = "\n".join(body_parts)
         try:
             pr = repo.create_pull(
                 title=f"[{task_body.task_id}] {task_body.spec.goal[:80] or task_issue.title}",

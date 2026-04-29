@@ -14,6 +14,7 @@ from flow.manifest import (
     ManifestEntry,
     TaskBody,
     TaskSpec,
+    render_task_prose,
 )
 from flow.metrics import EVENTS, emit
 from flow.state_machine import TERMINAL_STATES
@@ -104,6 +105,12 @@ def reconcile(
             spec=TaskSpec.from_dict(spec_dict),
             deps=deps,
         )
+        body.prose = render_task_prose(
+            task_id=task_id,
+            goal_issue=goal_issue.number,
+            spec=body.spec,
+            deps=deps,
+        )
         title = f"[{task_id}] {body.spec.goal[:80] or 'task'}"
         # Choose initial state: agent-ready if no unmet deps, else stay agent-ready
         # but tag deps; Coordinator dispatch checks deps before launching.
@@ -133,6 +140,12 @@ def reconcile(
         if child.body.spec.to_dict() != new_spec.to_dict():
             child.body.spec = new_spec
             child.body.deps = list(t.get("deps") or [])
+            child.body.prose = render_task_prose(
+                task_id=task_id,
+                goal_issue=goal_issue.number,
+                spec=new_spec,
+                deps=child.body.deps,
+            )
             client.update_issue_body(child.issue, child.body.to_body())
             print(f"[reconciler] updated spec for {task_id} #{child.issue.number}", flush=True)
 

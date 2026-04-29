@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 README = Path(__file__).resolve().parents[2] / "README.md"
 
 
@@ -8,7 +7,12 @@ def test_readme_includes_external_adoption_flow():
     content = README.read_text()
 
     assert "## Adopt ai-flow in another repository" in content
-    assert 'python -m pip install "ai-flow @ git+https://github.com/wangzw/ai-flow.git#subdirectory=.flow"' in content
+    assert (
+        'python -m pip install "ai-flow @ '
+        'git+https://github.com/wangzw/ai-flow.git#subdirectory=.flow"'
+        in content
+    )
+    assert 'gh extension install github/gh-copilot' in content
     assert 'flow init' in content
     assert 'flow apply-labels --repo <owner/repo>' in content
     assert 'flow doctor --repo <owner/repo>' in content
@@ -29,6 +33,8 @@ def test_readme_lists_workflow_runtime_prerequisites():
     assert '.flow/src' in content
     assert 'actions/setup-python@v5' in content
     assert 'actions/setup-node@v4' in content
+    assert 'flow-schedule.yml' in content
+    assert 'write access for `contents`, `issues`, `pull-requests`, and `actions`' in content
 
 
 def test_readme_explains_how_to_start_ai_flow_after_setup():

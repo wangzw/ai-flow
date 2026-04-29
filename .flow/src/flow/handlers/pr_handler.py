@@ -94,6 +94,10 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
         if not any(lbl.name == "merge-queued" for lbl in pr.labels):
             pr.add_to_labels("merge-queued")
         emit(EVENTS.ENQUEUED, pr_number=pr_number)
+        # GITHUB_TOKEN-driven label add does NOT trigger flow-merge-queue.
+        # Use workflow_dispatch via ACTION_GITHUB_TOKEN.
+        from flow.dispatch_actions import dispatch_merge_queue
+        dispatch_merge_queue(os.environ.get("SW_REPO") or repo.full_name)
         return 0
 
     max_iter = int((cfg.review.get("max_iterations") or 5))
@@ -106,6 +110,9 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
             )
             gh.update_issue_body(task_issue, body.to_body())
             gh.set_state_label(task_issue, "agent-ready")
+            from flow.dispatch_actions import dispatch_issue
+            dispatch_issue(os.environ.get("SW_REPO") or repo.full_name,
+                           task_issue.number)
             return 0
         body.review.arbitrations += 1
         gh.update_issue_body(task_issue, body.to_body())
@@ -115,6 +122,9 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
                        f"⚖️ Reviewer 死循环 (iter={iteration}, dims={result.failed_dimensions})。"
                        "调度 Planner 仲裁。")
             gh.set_state_label(goal_issue, "agent-working")
+            from flow.dispatch_actions import dispatch_issue
+            dispatch_issue(os.environ.get("SW_REPO") or repo.full_name,
+                           goal_issue.number)
         except Exception:
             pass
         return 0

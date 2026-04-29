@@ -129,19 +129,20 @@ def process_merge_queue(
             tb.artifacts.append({"pr": head.number, "branch": head.head.ref})
             client.update_issue_body(issue, tb.to_body())
 
-            # Find parent goal and add it to the planner re-entry queue
+            # Find parent goal and dispatch flow-issue.yml for Planner re-entry.
             goal_num = tb.goal_issue
             if goal_num:
                 try:
                     goal_issue = repo.get_issue(goal_num)
-                    # Trigger Planner re-entry by toggling label back to agent-working
-                    # so cron picks it up — simpler: just emit metric and let cron sweep.
                     emit(EVENTS.PLANNER_RECONCILED, issue_iid=goal_num,
                          reason="child_done", child=task_issue_number)
-                    # Best-effort: nudge the goal back to agent-working so the
-                    # cron workflow re-invokes Planner with reason=child_done.
                     if not any(lbl.name == "agent-working" for lbl in goal_issue.labels):
                         client.set_state_label(goal_issue, "agent-working")
+                    # Event-driven re-entry: dispatch flow-issue for the goal so
+                    # Planner runs with reason=child_done. GITHUB_TOKEN-driven
+                    # label changes don't trigger workflow runs.
+                    from flow.dispatch_actions import dispatch_issue
+                    dispatch_issue(repo.full_name, goal_num)
                 except Exception:
                     pass
         except Exception:

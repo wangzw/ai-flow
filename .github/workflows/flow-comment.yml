@@ -7,6 +7,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: flow-comment-${{ github.event.issue.number }}
@@ -35,6 +36,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          ACTION_GITHUB_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_ISSUE_NUMBER: ${{ github.event.issue.number }}
           SW_COMMENT_BODY: ${{ github.event.comment.body }}

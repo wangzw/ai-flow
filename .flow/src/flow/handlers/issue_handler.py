@@ -107,6 +107,25 @@ def handle_goal_ready(*, repo, issue, gh: GitHubClient, cfg: Config) -> int:
     if "agent-done" in _label_names(issue) or "needs-human" in _label_names(issue):
         return 0
 
+    # Event-driven chain: dispatch flow-issue.yml for each ready child task.
+    # GITHUB_TOKEN-driven label changes don't trigger workflow runs, so we use
+    # ACTION_GITHUB_TOKEN to call workflow_dispatch directly.
+    from flow.dispatch_actions import dispatch_issue, is_available
+
+    if is_available():
+        body = GoalBody.parse(issue.body or "")
+        children = gather_current_children(repo, body)
+        for child in children:
+            if child.state_label != "agent-ready":
+                continue
+            unmet = [d for d in (child.body.deps or [])
+                     if not _is_dep_done(d, children)]
+            if unmet:
+                continue
+            dispatch_issue(repo.full_name, child.issue.number)
+        return 0
+
+    # Fallback: orchestrate inline if ACTION_GITHUB_TOKEN is unavailable.
     return _drive_to_completion(repo=repo, goal_issue=issue, gh=gh, cfg=cfg)
 
 
@@ -256,14 +275,15 @@ def _find_pr_for_task(repo, task_body):
 
 
 def _run_implementer_for_task(*, repo, task_issue, task_body, gh: GitHubClient,
-                              cfg: Config) -> None:
+                              cfg: Config) -> int | None:
+    """Run Implementer; return the PR number it produced, or None if not done."""
     from flow.coder import run_implementer
 
     if not task_body.task_id:
         gh.comment(task_issue,
                    "❌ Task body 缺少 frontmatter (task_id)。需 Planner 重新生成。")
         gh.set_state_label(task_issue, "needs-human")
-        return
+        return None
 
     goal_prose = ""
     sibling_artifacts: list[dict] = []
@@ -305,7 +325,7 @@ def _run_implementer_for_task(*, repo, task_issue, task_body, gh: GitHubClient,
             task_body.artifacts.append({"pr": result.pr_number,
                                         "branch": result.branch_name})
         gh.update_issue_body(task_issue, task_body.to_body())
-        return
+        return result.pr_number
 
     if result.status == "blocked":
         from flow.comment_writer import build_needs_human_comment
@@ -333,7 +353,7 @@ def _run_implementer_for_task(*, repo, task_issue, task_body, gh: GitHubClient,
         gh.set_state_label(task_issue, "needs-human")
         emit(EVENTS.CODER_BLOCKER, issue_iid=task_issue.number,
              blocker_type=blocker.get("type"))
-        return
+        return None
 
     # subprocess_error / no_marker → failed-env
     from flow.retry import classify_blocker, compute_next_attempt
@@ -361,15 +381,32 @@ def _run_implementer_for_task(*, repo, task_issue, task_body, gh: GitHubClient,
         gh.set_state_label(task_issue, "agent-ready")
     task_body.agent_state.stage = "blocked"
     gh.update_issue_body(task_issue, task_body.to_body())
+    return None
 
 
 def handle_task_ready(*, repo, issue, gh: GitHubClient, cfg: Config) -> int:
-    """Task got agent-ready directly: run implementer, then route to goal-driven
-    orchestration so the rest of the chain (review→merge→re-plan) executes."""
+    """Task got agent-ready directly: run Implementer, then dispatch flow-pr-ready
+    via workflow_dispatch (or fall back to inline orchestration)."""
+    from flow.dispatch_actions import dispatch_pr_ready, is_available
+
     print(f"[task] #{issue.number} {issue.title!r}", flush=True)
     body = TaskBody.parse(issue.body or "")
-    _run_implementer_for_task(repo=repo, task_issue=issue, task_body=body,
-                              gh=gh, cfg=cfg)
+    pr_number = _run_implementer_for_task(repo=repo, task_issue=issue,
+                                          task_body=body, gh=gh, cfg=cfg)
+
+    if pr_number and is_available():
+        # Mark PR ready-for-review (Implementer creates as draft) so reviewer
+        # workflow has a fully-open PR to operate on.
+        try:
+            pr = repo.get_pull(int(pr_number))
+            if pr.draft:
+                pr.mark_ready_for_review()
+        except Exception as exc:
+            print(f"[task] mark_ready failed: {exc}", flush=True)
+        dispatch_pr_ready(repo.full_name, int(pr_number))
+        return 0
+
+    # Fallback to inline orchestration (no ACTION_GITHUB_TOKEN)
     if body.goal_issue:
         try:
             goal_issue = repo.get_issue(body.goal_issue)

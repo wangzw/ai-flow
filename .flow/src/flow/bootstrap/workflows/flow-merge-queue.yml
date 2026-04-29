@@ -2,11 +2,13 @@ name: flow-merge-queue
 on:
   pull_request:
     types: [labeled]
+  workflow_dispatch: {}
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: flow-merge-queue
@@ -14,7 +16,7 @@ concurrency:
 
 jobs:
   process:
-    if: github.event.label.name == 'merge-queued'
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'merge-queued' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -35,6 +37,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          ACTION_GITHUB_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
           SW_REPO: ${{ github.repository }}
           SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
         run: python -m flow.coordinator merge-queue

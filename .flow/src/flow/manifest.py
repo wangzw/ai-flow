@@ -24,7 +24,16 @@ from ruamel.yaml import YAML
 
 SCHEMA_VERSION = 1
 
-_FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.DOTALL)
+_LEGACY_FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.DOTALL)
+_FENCED_FRONTMATTER_RE = re.compile(
+    r"\A\s*<!--\s*ai-flow:metadata\s*-->\s*\n"
+    r"(?:<details>.*?\n\s*\n)?"
+    r"```ya?ml\s*\n(.*?)\n```\s*\n"
+    r"(?:\s*\n?</details>\s*\n)?"
+    r"(.*)\Z",
+    re.DOTALL,
+)
+_FRONTMATTER_RE = _LEGACY_FRONTMATTER_RE  # back-compat alias
 
 
 def _yaml() -> YAML:
@@ -38,12 +47,20 @@ def _yaml() -> YAML:
 def split_frontmatter(body: str) -> tuple[dict | None, str]:
     """Split a body into (yaml_dict, prose).
 
-    Returns (None, body) if no frontmatter present or malformed (fail-closed
-    callers may treat None as a parse error).
+    Accepts two formats:
+      1. New (preferred): a fenced ```yaml code block wrapped in a <details>
+         block, marked by an HTML comment ``<!-- ai-flow:metadata -->``.
+         GitHub renders this as a collapsible section so humans see the
+         human-readable prose first.
+      2. Legacy: classic ``---\\n...\\n---\\n`` Jekyll-style frontmatter.
+
+    Returns (None, body) if no frontmatter is present or it's malformed.
     """
     if not body:
         return None, ""
-    m = _FRONTMATTER_RE.match(body)
+    m = _FENCED_FRONTMATTER_RE.match(body)
+    if not m:
+        m = _LEGACY_FRONTMATTER_RE.match(body)
     if not m:
         return None, body
     yaml = YAML(typ="safe")
@@ -57,11 +74,29 @@ def split_frontmatter(body: str) -> tuple[dict | None, str]:
 
 
 def join_frontmatter(data: dict, prose: str) -> str:
-    """Serialize (yaml_dict, prose) back into Issue body format."""
+    """Serialize (yaml_dict, prose) back into Issue body format.
+
+    Writes the new fenced + <details> format so GitHub renders the
+    machine-readable block as a collapsible code block; humans see the
+    prose first and can expand the metadata when needed.
+    """
     yaml = _yaml()
     buf = StringIO()
     yaml.dump(data, buf)
-    return f"---\n{buf.getvalue()}---\n\n{prose.lstrip()}"
+    yaml_text = buf.getvalue().rstrip()
+    body = (
+        "<!-- ai-flow:metadata -->\n"
+        "<details><summary>ai-flow metadata (machine-managed; do not edit)</summary>\n"
+        "\n"
+        "```yaml\n"
+        f"{yaml_text}\n"
+        "```\n"
+        "\n"
+        "</details>\n"
+        "\n"
+        f"{prose.lstrip()}"
+    )
+    return body
 
 
 # ---------------------------------------------------------------------------

@@ -21,36 +21,43 @@ Reviewer matrix + merge queue + slash commands all implemented. See
 
 ## Adopt ai-flow in another repository
 
-The bundled workflows are designed to run **from the target repository**. In
-their current form they check out that repository and execute
-`pip install -e ./.flow`, so the target repo must commit the ai-flow runtime
-under `.flow/` before enabling the workflows. `flow init` adds workflows, the
-goal issue template, `.flow/config.yml`, and `.flow/prompts/`; it does **not**
-copy `.flow/pyproject.toml` or `.flow/src/` for you.
+The bundled workflows run **inside the repository that is adopting ai-flow**.
+That matters because every workflow checks out the target repository and runs
+`pip install -e ./.flow`. In practice, adoption has two parts:
 
-### 1. Vendor the runtime into the target repo, then install ai-flow locally
+1. install the `flow` CLI on your workstation so you can bootstrap the repo
+2. commit the ai-flow runtime (`.flow/pyproject.toml` and `.flow/src/`) plus
+   the generated workflow/config/template files into the target repository
+
+`flow init` handles the second part only partially: it writes the workflows,
+goal issue template, `.flow/config.yml`, and `.flow/prompts/`, but it does not
+copy the runtime package for you.
+
+### 1. Install the ai-flow CLI locally
+
+Install the package from this repository's `.flow` subdirectory:
+
+```bash
+python -m pip install "ai-flow @ git+https://github.com/wangzw/ai-flow.git#subdirectory=.flow"
+```
+
+That gives you the `flow` command locally without requiring any manual file
+copying into your target repository yet.
+
+### 2. Bootstrap the target repository
+
+From the target repository root, run `flow init` and then vendor the runtime
+files that the generated workflows install from:
 
 ```bash
 cd /path/to/target-repo
-git clone --depth=1 https://github.com/wangzw/ai-flow.git /tmp/ai-flow-bootstrap
-mkdir -p .flow
-cp /tmp/ai-flow-bootstrap/.flow/pyproject.toml .flow/pyproject.toml
-cp -R /tmp/ai-flow-bootstrap/.flow/src .flow/src
-python -m pip install -e ./.flow
-```
-
-That gives the target repository the same package layout the generated GitHub
-Actions jobs expect when they later run `pip install -e ./.flow`.
-
-### 2. Bootstrap repo-local assets
-
-Run the CLI from the target repository root:
-
-```bash
 flow init
+git remote add ai-flow-upstream https://github.com/wangzw/ai-flow.git
+git fetch --depth=1 ai-flow-upstream main
+git checkout ai-flow-upstream/main -- .flow/pyproject.toml .flow/src
 ```
 
-This writes:
+`flow init` writes:
 
 - `.github/workflows/flow-issue.yml`
 - `.github/workflows/flow-comment.yml`
@@ -61,14 +68,20 @@ This writes:
 - `.flow/config.yml`
 - `.flow/prompts/*.md`
 
+The `git checkout ... -- .flow/pyproject.toml .flow/src` step vendors the same
+runtime package layout the workflows later expect when they run
+`pip install -e ./.flow`.
+
 Before you commit, edit `.flow/config.yml` for your repository. In particular,
 set `authorized_users` so `/agent ...` slash commands are accepted from your
-maintainers.
+maintainers. Then commit and push the generated workflow files, the goal issue
+template, `.flow/config.yml`, `.flow/prompts/`, `.flow/pyproject.toml`, and
+`.flow/src` to the repository's default branch.
 
 ### 3. Create labels and run the health check
 
 `flow apply-labels` and `flow doctor` require `GITHUB_TOKEN` or
-`FLOW_GIT_TOKEN` in your shell.
+`FLOW_GIT_TOKEN` in your shell:
 
 ```bash
 export GITHUB_TOKEN=<token-with-access-to-owner/repo>
@@ -77,34 +90,36 @@ flow doctor --repo <owner/repo>
 ```
 
 `flow doctor --repo <owner/repo>` checks the local CLI install, token access,
-the ai-flow label set, the generated workflow files, and `.flow/config.yml`.
+the ai-flow label set, the committed `flow-*.yml` workflow files, and
+`.flow/config.yml`.
 
-### 4. GitHub Actions and secrets prerequisites
+### 4. GitHub Actions and runtime prerequisites
 
 The generated workflows assume the target repository has:
 
 | Requirement | Why it is needed |
 | --- | --- |
 | GitHub Actions enabled on the repository | `flow init` installs workflow-driven automation; nothing runs without Actions. |
-| The generated workflow files committed to the default branch | `flow-issue.yml`, `flow-comment.yml`, `flow-pr-ready.yml`, `flow-merge-queue.yml`, and `flow-schedule.yml` are the runtime entry points. |
+| The generated workflow files and vendored `.flow` runtime committed to the default branch | Each job checks out the target repo and runs `pip install -e ./.flow`, so the runtime must live in the repository alongside `flow-issue.yml`, `flow-comment.yml`, `flow-pr-ready.yml`, `flow-merge-queue.yml`, and `flow-schedule.yml`. |
 | Runners compatible with the bundled jobs (`ubuntu-latest`, Python 3.11, Node 20) | The workflows use `actions/setup-python@v5`, `actions/setup-node@v4`, and then install dependencies inside the job. |
-| Ability for workflows to run `npm install -g @github/copilot` | Every planner / implementer / reviewer workflow installs Copilot CLI inside the runner. |
+| Ability for workflows to run `npm install -g @github/copilot` | Every planner / implementer / reviewer job installs Copilot CLI in the runner before invoking ai-flow. |
 | `secrets.COPILOT_GITHUB_TOKEN` | Passed to Copilot CLI as `COPILOT_GITHUB_TOKEN` for agent authentication. |
-| `secrets.ACTION_GITHUB_TOKEN` with access to `workflow_dispatch` on the repo | Used to fan out `flow-issue.yml`, `flow-pr-ready.yml`, and `flow-merge-queue.yml` via `workflow_dispatch`. |
-| The built-in `GITHUB_TOKEN` available to workflows with `contents: write`, `issues: write`, `pull-requests: write`, and `actions: write` where declared | The bundled workflows export it as `GITHUB_TOKEN` and `FLOW_GIT_TOKEN` for GitHub API writes, labels, issue updates, PR updates, and queue processing. |
+| `secrets.ACTION_GITHUB_TOKEN` with access to `workflow_dispatch` on the repo | Used to fan out `flow-issue.yml`, `flow-pr-ready.yml`, and `flow-merge-queue.yml` via `workflow_dispatch`. If it is absent, ai-flow falls back to inline orchestration in a single workflow run. |
+| Workflow `GITHUB_TOKEN` write access for `contents`, `issues`, `pull-requests`, and `actions` | The bundled workflows export `secrets.GITHUB_TOKEN` as both `GITHUB_TOKEN` and `FLOW_GIT_TOKEN` for GitHub API writes, labels, issue updates, PR updates, and queue processing. |
 
 ### 5. Start the system
 
-After the repo is bootstrapped and the workflows are committed:
+After the repo is bootstrapped, pushed, and the workflow prerequisites are in
+place:
 
 1. Open a new issue from `.github/ISSUE_TEMPLATE/goal.md` (the **🎯 Goal**
    template). It pre-labels the issue with `type:goal`.
 2. Fill in the goal, done criteria, and any constraints.
 3. Add the `agent-ready` label to that goal issue.
 
-`flow-issue.yml` is wired to the `agent-ready` label, so adding that label
-starts the Planner. From there the bundled workflows drive task creation,
-implementation, review, and merge.
+`flow-issue.yml` listens for the `agent-ready` label, so adding that label
+starts the Planner. From there the bundled workflows create task issues, run
+Implementer and Reviewer agents, and drain the merge queue automatically.
 
 ## Developing ai-flow itself
 

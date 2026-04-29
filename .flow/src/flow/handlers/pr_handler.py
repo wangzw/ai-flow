@@ -47,7 +47,7 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
 
     workdir = Path(tempfile.mkdtemp(prefix=f"flow-review-pr-{pr_number}-"))
     repo_path = workdir / "repo"
-    sw_git_token = (os.environ.get("SW_GIT_TOKEN")
+    sw_git_token = (os.environ.get("FLOW_GIT_TOKEN")
         or os.environ.get("COPILOT_GITHUB_TOKEN")
         or os.environ.get("GITHUB_TOKEN"))
     if sw_git_token and repo.clone_url.startswith("https://"):
@@ -97,7 +97,7 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
         # GITHUB_TOKEN-driven label add does NOT trigger flow-merge-queue.
         # Use workflow_dispatch via ACTION_GITHUB_TOKEN.
         from flow.dispatch_actions import dispatch_merge_queue
-        dispatch_merge_queue(os.environ.get("SW_REPO") or repo.full_name)
+        dispatch_merge_queue(os.environ.get("FLOW_REPO") or repo.full_name)
         return 0
 
     max_iter = int((cfg.review.get("max_iterations") or 5))
@@ -111,7 +111,7 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
             gh.update_issue_body(task_issue, body.to_body())
             gh.set_state_label(task_issue, "agent-ready")
             from flow.dispatch_actions import dispatch_issue
-            dispatch_issue(os.environ.get("SW_REPO") or repo.full_name,
+            dispatch_issue(os.environ.get("FLOW_REPO") or repo.full_name,
                            task_issue.number)
             return 0
         body.review.arbitrations += 1
@@ -123,7 +123,7 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
                        "调度 Planner 仲裁。")
             gh.set_state_label(goal_issue, "agent-working")
             from flow.dispatch_actions import dispatch_issue
-            dispatch_issue(os.environ.get("SW_REPO") or repo.full_name,
+            dispatch_issue(os.environ.get("FLOW_REPO") or repo.full_name,
                            goal_issue.number)
         except Exception:
             pass
@@ -138,9 +138,9 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
 
 
 def handle_pr_ready() -> int:
-    pr_number = int(os.environ["SW_PR_NUMBER"])
+    pr_number = int(os.environ["FLOW_PR_NUMBER"])
     cfg = Config.load()
     gh = GitHubClient.from_env()
-    repo = gh.get_repo(os.environ["SW_REPO"])
+    repo = gh.get_repo(os.environ["FLOW_REPO"])
     pr = repo.get_pull(pr_number)
     return review_pr(pr=pr, repo=repo, gh=gh, cfg=cfg)

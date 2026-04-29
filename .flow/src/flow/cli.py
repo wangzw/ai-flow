@@ -81,9 +81,9 @@ def apply_labels(repo: str) -> None:
     """Create the 7 ai-flow labels in REPO."""
     from github import Github
 
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("SW_GIT_TOKEN")
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("FLOW_GIT_TOKEN")
     if not token:
-        raise click.ClickException("GITHUB_TOKEN or SW_GIT_TOKEN required")
+        raise click.ClickException("GITHUB_TOKEN or FLOW_GIT_TOKEN required")
     gh = Github(token)
     r = gh.get_repo(repo)
     existing = {lbl.name for lbl in r.get_labels()}
@@ -126,8 +126,8 @@ def doctor(repo: str) -> None:
           "install: gh extension install github/gh-copilot")
 
     # 2. GitHub auth
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("SW_GIT_TOKEN")
-    check("GITHUB_TOKEN/SW_GIT_TOKEN env set", token is not None)
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("FLOW_GIT_TOKEN")
+    check("GITHUB_TOKEN/FLOW_GIT_TOKEN env set", token is not None)
 
     if token:
         from github import Github
@@ -169,9 +169,9 @@ def status(repo: str, goal: int | None) -> None:
 
     from flow.manifest import GoalBody
 
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("SW_GIT_TOKEN")
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("FLOW_GIT_TOKEN")
     if not token:
-        raise click.ClickException("GITHUB_TOKEN or SW_GIT_TOKEN required")
+        raise click.ClickException("GITHUB_TOKEN or FLOW_GIT_TOKEN required")
     r = Github(token).get_repo(repo)
 
     issues = [r.get_issue(goal)] if goal else r.get_issues(state="all", labels=["type:goal"])
@@ -202,16 +202,16 @@ def report() -> None:
 
 @report.command()
 @click.option("--metrics-file", type=click.Path(),
-              help="JSONL metrics file (default: $SW_METRICS_FILE)")
+              help="JSONL metrics file (default: $FLOW_METRICS_FILE)")
 def cost(metrics_file: str | None) -> None:
     """Aggregate llm_call events into per-goal cost report (spec §14.4)."""
     import json
     from collections import defaultdict
 
-    src = metrics_file or os.environ.get("SW_METRICS_FILE")
+    src = metrics_file or os.environ.get("FLOW_METRICS_FILE")
     if not src or not Path(src).exists():
         raise click.ClickException(
-            "set --metrics-file or SW_METRICS_FILE to a JSONL log path")
+            "set --metrics-file or FLOW_METRICS_FILE to a JSONL log path")
     by_goal: dict = defaultdict(lambda: {"calls": 0, "ms": 0, "by_role": defaultdict(int)})
     with open(src) as f:
         for line in f:

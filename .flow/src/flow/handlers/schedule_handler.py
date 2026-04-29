@@ -12,7 +12,7 @@ from flow.retry import is_due
 
 def handle_schedule() -> int:
     gh = GitHubClient.from_env()
-    repo = gh.get_repo(os.environ["SW_REPO"])
+    repo = gh.get_repo(os.environ["FLOW_REPO"])
 
     # Sweep agent-ready tasks whose failed_env.next_attempt has passed but
     # weren't dispatched (rare — most tasks dispatch on label add). We just

@@ -6,9 +6,9 @@ Usage (from .github/workflows/flow-*.yml):
     python -m flow.coordinator <command>
 
 Commands:
-    issue-labeled   — SW_ISSUE_NUMBER, SW_LABEL_ADDED
-    comment-created — SW_ISSUE_NUMBER, SW_COMMENT_BODY, SW_COMMENT_AUTHOR
-    pr-ready        — SW_PR_NUMBER
+    issue-labeled   — FLOW_ISSUE_NUMBER, FLOW_LABEL_ADDED
+    comment-created — FLOW_ISSUE_NUMBER, FLOW_COMMENT_BODY, FLOW_COMMENT_AUTHOR
+    pr-ready        — FLOW_PR_NUMBER
     merge-queue     — (no per-PR env)
     schedule        — cron sweep
 """
@@ -45,7 +45,7 @@ def cmd_merge_queue() -> int:
     from flow.merge_queue import process_merge_queue
 
     gh = GitHubClient.from_env()
-    repo = gh.get_repo(os.environ["SW_REPO"])
+    repo = gh.get_repo(os.environ["FLOW_REPO"])
     n = process_merge_queue(repo=repo, client=gh)
     print(f"[dispatch] merge_queue processed {n}", flush=True)
     return 0

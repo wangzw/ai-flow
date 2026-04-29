@@ -42,12 +42,12 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FLOW_GIT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           ACTION_GITHUB_TOKEN: ${{ secrets.ACTION_GITHUB_TOKEN }}
-          SW_REPO: ${{ github.repository }}
-          SW_PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
-          SW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
+          FLOW_REPO: ${{ github.repository }}
+          FLOW_PR_NUMBER: ${{ github.event.inputs.pr_number || github.event.pull_request.number }}
+          FLOW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
         run: python -m flow.coordinator pr-ready
 
       - name: Upload review artifacts

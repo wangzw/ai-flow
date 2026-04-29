@@ -28,13 +28,13 @@ def _is_goal(issue) -> bool:
 
 
 def handle_comment_created() -> int:
-    body = os.environ.get("SW_COMMENT_BODY", "")
+    body = os.environ.get("FLOW_COMMENT_BODY", "")
     cmd = extract_agent_command(body)
     if cmd is None:
         return 0
 
     cfg = Config.load()
-    actor = os.environ.get("SW_COMMENT_AUTHOR")
+    actor = os.environ.get("FLOW_COMMENT_AUTHOR")
     if not is_authorized(actor, cfg.authorized_users):
         print(f"[comment] {actor!r} not authorized; ignoring /agent {cmd.name}",
               flush=True)
@@ -44,8 +44,8 @@ def handle_comment_created() -> int:
     emit(EVENTS.COMMAND_RECEIVED, command=cmd.name, actor=actor)
 
     gh = GitHubClient.from_env()
-    repo = gh.get_repo(os.environ["SW_REPO"])
-    issue = repo.get_issue(int(os.environ["SW_ISSUE_NUMBER"]))
+    repo = gh.get_repo(os.environ["FLOW_REPO"])
+    issue = repo.get_issue(int(os.environ["FLOW_ISSUE_NUMBER"]))
 
     current = _current_state(issue)
     next_label = next_state_for_event(current, f"command:{cmd.name}")
@@ -84,12 +84,12 @@ def handle_comment_created() -> int:
     # If transitioning to a state that should re-dispatch, route to issue_handler.
     if next_label in ("agent-ready", "agent-working"):
         # Simulate label-added event
-        os.environ["SW_LABEL_ADDED"] = "agent-ready"
+        os.environ["FLOW_LABEL_ADDED"] = "agent-ready"
         from flow.handlers.issue_handler import handle_issue_labeled
 
         # Set label so handler picks correct branch (already set above for ready)
         if next_label == "agent-working":
             # For replan/decide we already set agent-working; force re-dispatch
-            os.environ["SW_LABEL_ADDED"] = "agent-ready"
+            os.environ["FLOW_LABEL_ADDED"] = "agent-ready"
         return handle_issue_labeled()
     return 0

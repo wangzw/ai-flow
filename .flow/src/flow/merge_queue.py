@@ -56,7 +56,7 @@ def process_merge_queue(
     if re_review:
         workdir = Path(tempfile.mkdtemp(prefix=f"flow-merge-pr-{head.number}-"))
         repo_path = workdir / "repo"
-        sw_git_token = (os.environ.get("SW_GIT_TOKEN")
+        sw_git_token = (os.environ.get("FLOW_GIT_TOKEN")
         or os.environ.get("COPILOT_GITHUB_TOKEN")
         or os.environ.get("GITHUB_TOKEN"))
         if sw_git_token and repo.clone_url.startswith("https://"):

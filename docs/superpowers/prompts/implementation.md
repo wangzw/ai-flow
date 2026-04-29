@@ -44,7 +44,7 @@
 1. **Python**，平台 GitHub-first（GitLab CE 留 v0.2）
 2. **不发布到 PyPI**——框架代码作为目标项目的 `.flow/` 子目录提交
 3. **Agent CLI**：GitHub 用 `copilot`（`@github/copilot`），GitLab 用 `claude`（Claude Code）
-4. **环境变量名沿用 software-workflow**：`SW_REPO`、`SW_ISSUE_NUMBER`、`COPILOT_GITHUB_TOKEN`、`ANTHROPIC_API_KEY` 等。**不要改名**。
+4. **环境变量名沿用 software-workflow**：`FLOW_REPO`、`FLOW_ISSUE_NUMBER`、`COPILOT_GITHUB_TOKEN`、`ANTHROPIC_API_KEY` 等。**不要改名**。
 5. **Channel 纪律**（设计 §11）：Reviewer 不读 commit msg / PR description / implementer summary。在 prompt 和 input bundle 构造层都强制。
 6. **Fail-closed**：缺 marker / 解析失败 / 状态非法 → 立即转 needs-human 或 failed-env。**不要默认值兜底**。
 7. **Reconciler 范式**：Planner 输出**全量** desired_plan，不是 diff。所有副作用由 Coordinator 应用。

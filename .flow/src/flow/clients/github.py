@@ -33,13 +33,13 @@ class GitHubClient:
 
         token = (
             os.environ.get("GITHUB_TOKEN")
-            or os.environ.get("SW_GIT_TOKEN")
+            or os.environ.get("FLOW_GIT_TOKEN")
             or os.environ.get("COPILOT_GITHUB_TOKEN")
         )
         if not token:
             raise RuntimeError(
                 "no GitHub token found "
-                "(set GITHUB_TOKEN, SW_GIT_TOKEN, or COPILOT_GITHUB_TOKEN)"
+                "(set GITHUB_TOKEN, FLOW_GIT_TOKEN, or COPILOT_GITHUB_TOKEN)"
             )
         return cls.from_token(token)
 

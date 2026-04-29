@@ -1,6 +1,6 @@
 """Structured metrics emission (spec §14, §16.5).
 
-Emits one JSON line per event. Sink is stdout by default; if SW_METRICS_FILE
+Emits one JSON line per event. Sink is stdout by default; if FLOW_METRICS_FILE
 is set, appends to that file. emit() never raises (spec §14.5).
 """
 
@@ -41,7 +41,7 @@ def emit(event: str, *, issue_iid: int | None = None, **fields: Any) -> None:
     }
     try:
         line = json.dumps(record, ensure_ascii=False, default=str)
-        sink = os.environ.get("SW_METRICS_FILE")
+        sink = os.environ.get("FLOW_METRICS_FILE")
         if sink:
             with open(sink, "a", encoding="utf-8") as f:
                 f.write(line + "\n")

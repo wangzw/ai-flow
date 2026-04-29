@@ -1321,17 +1321,17 @@ cost:
 | 变量 | 用途 |
 |---|---|
 | `GITHUB_TOKEN` (auto) | PyGithub + git 操作 |
-| `SW_GIT_TOKEN` | git push HTTPS（passthrough） |
+| `FLOW_GIT_TOKEN` | git push HTTPS（passthrough） |
 | `COPILOT_GITHUB_TOKEN` | Copilot CLI 鉴权 |
 | `GITLAB_API_TOKEN` | GitLab API（GitLab 路径） |
 | `ANTHROPIC_API_KEY` | Claude Code（GitLab 路径） |
-| `SW_REPO` | `<owner>/<repo>` |
-| `SW_ISSUE_NUMBER` | 触发的 Issue |
-| `SW_PR_NUMBER` | 触发的 PR |
-| `SW_LABEL_ADDED` | 添加的 label 名 |
-| `SW_COMMENT_BODY` | 触发的 comment 内容 |
+| `FLOW_REPO` | `<owner>/<repo>` |
+| `FLOW_ISSUE_NUMBER` | 触发的 Issue |
+| `FLOW_PR_NUMBER` | 触发的 PR |
+| `FLOW_LABEL_ADDED` | 添加的 label 名 |
+| `FLOW_COMMENT_BODY` | 触发的 comment 内容 |
 
-`SW_*` 前缀沿用，与 software-workflow 已测试的 client 实现兼容。
+`FLOW_*` 前缀（旧 `SW_*` 已废弃，软件工作流的兼容层不再需要）。
 
 ### 13.6 Smoke Test
 
@@ -1406,7 +1406,7 @@ flow report cost --by model                # 模型成本分布
 
 ### 14.5 emit() 实现纪律
 
-继承 software-workflow：**emit() 永不抛异常**。指标失败必须 silently degrade，绝不破坏工作流。JSON lines 写到 stdout 或 `SW_METRICS_FILE`。
+继承 software-workflow：**emit() 永不抛异常**。指标失败必须 silently degrade，绝不破坏工作流。JSON lines 写到 stdout 或 `FLOW_METRICS_FILE`。
 
 ---
 

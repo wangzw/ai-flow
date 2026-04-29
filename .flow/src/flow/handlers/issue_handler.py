@@ -418,15 +418,15 @@ def handle_task_ready(*, repo, issue, gh: GitHubClient, cfg: Config) -> int:
 
 
 def handle_issue_labeled() -> int:
-    """Entry from workflow: read SW_* env, route to goal/task handler."""
-    label = os.environ.get("SW_LABEL_ADDED")
+    """Entry from workflow: read FLOW_* env, route to goal/task handler."""
+    label = os.environ.get("FLOW_LABEL_ADDED")
     if label != "agent-ready":
         return 0
 
     cfg = Config.load()
     gh = GitHubClient.from_env()
-    repo = gh.get_repo(os.environ["SW_REPO"])
-    issue = repo.get_issue(int(os.environ["SW_ISSUE_NUMBER"]))
+    repo = gh.get_repo(os.environ["FLOW_REPO"])
+    issue = repo.get_issue(int(os.environ["FLOW_ISSUE_NUMBER"]))
 
     if _is_goal(issue):
         return handle_goal_ready(repo=repo, issue=issue, gh=gh, cfg=cfg)

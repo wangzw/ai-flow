@@ -21,6 +21,6 @@ jobs:
       - name: Sweep
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SW_REPO: ${{ github.repository }}
+          FLOW_REPO: ${{ github.repository }}
           PYTHONUNBUFFERED: "1"
         run: python -m flow.coordinator schedule

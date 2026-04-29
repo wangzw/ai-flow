@@ -30,16 +30,12 @@ def _link_task(repo, pr_body: str):
         return None
 
 
-def handle_pr_ready() -> int:
+def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
+    """Run reviewer for a PR; mirrors handle_pr_ready but works in-process."""
     from flow.clients.copilot import CopilotCliClient
     from flow.reviewer import run_review_matrix
 
-    pr_number = int(os.environ["SW_PR_NUMBER"])
-    cfg = Config.load()
-    gh = GitHubClient.from_env()
-    repo = gh.get_repo(os.environ["SW_REPO"])
-    pr = repo.get_pull(pr_number)
-
+    pr_number = pr.number
     task_issue = _link_task(repo, pr.body or "")
     task_id = "PR"
     task_spec: dict = {}
@@ -49,10 +45,11 @@ def handle_pr_ready() -> int:
         task_id = body.task_id or f"PR-{pr_number}"
         task_spec = body.spec.to_dict()
 
-    # Clone the PR head
     workdir = Path(tempfile.mkdtemp(prefix=f"flow-review-pr-{pr_number}-"))
     repo_path = workdir / "repo"
-    sw_git_token = os.environ.get("SW_GIT_TOKEN") or os.environ.get("COPILOT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    sw_git_token = (os.environ.get("SW_GIT_TOKEN")
+        or os.environ.get("COPILOT_GITHUB_TOKEN")
+        or os.environ.get("GITHUB_TOKEN"))
     if sw_git_token and repo.clone_url.startswith("https://"):
         clone_url = repo.clone_url.replace(
             "https://", f"https://x-access-token:{sw_git_token}@", 1
@@ -99,11 +96,9 @@ def handle_pr_ready() -> int:
         emit(EVENTS.ENQUEUED, pr_number=pr_number)
         return 0
 
-    # FAIL: spec §5.6 three-stage escalation
     max_iter = int((cfg.review.get("max_iterations") or 5))
     if iteration < max_iter and body is not None:
         if body.review.arbitrations < int(cfg.review.get("max_arbitrations", 2)):
-            # Auto-retry: route the task back to Implementer with reviewer feedback
             body.agent_state.stage = "implementer"
             body.agent_state.progress = (
                 f"Reviewer iteration {iteration} failed: {result.failed_dimensions}; "
@@ -112,7 +107,6 @@ def handle_pr_ready() -> int:
             gh.update_issue_body(task_issue, body.to_body())
             gh.set_state_label(task_issue, "agent-ready")
             return 0
-        # Arbitration: Planner re-entry
         body.review.arbitrations += 1
         gh.update_issue_body(task_issue, body.to_body())
         try:
@@ -125,10 +119,18 @@ def handle_pr_ready() -> int:
             pass
         return 0
 
-    # Exhausted: needs-human
     if task_issue is not None:
         gh.comment(task_issue,
                    f"❌ Reviewer 已达最大迭代 ({iteration})，dims={result.failed_dimensions}，"
                    "需要人工介入。")
         gh.set_state_label(task_issue, "needs-human")
     return 0
+
+
+def handle_pr_ready() -> int:
+    pr_number = int(os.environ["SW_PR_NUMBER"])
+    cfg = Config.load()
+    gh = GitHubClient.from_env()
+    repo = gh.get_repo(os.environ["SW_REPO"])
+    pr = repo.get_pull(pr_number)
+    return review_pr(pr=pr, repo=repo, gh=gh, cfg=cfg)

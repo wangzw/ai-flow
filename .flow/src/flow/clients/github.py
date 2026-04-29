@@ -26,20 +26,20 @@ class GitHubClient:
 
     @classmethod
     def from_env(cls) -> "GitHubClient":
-        """Prefer COPILOT_GITHUB_TOKEN (PAT) so issues/labels we create
-        actually trigger downstream workflows; GITHUB_TOKEN-driven events
-        are silently dropped by GitHub Actions."""
+        """Use GITHUB_TOKEN by default — it has issues:write/contents:write
+        within the same repo. Workflow trigger limitations are addressed
+        via inline orchestration in handlers, not via PAT use."""
         import os
 
         token = (
-            os.environ.get("COPILOT_GITHUB_TOKEN")
+            os.environ.get("GITHUB_TOKEN")
             or os.environ.get("SW_GIT_TOKEN")
-            or os.environ.get("GITHUB_TOKEN")
+            or os.environ.get("COPILOT_GITHUB_TOKEN")
         )
         if not token:
             raise RuntimeError(
                 "no GitHub token found "
-                "(set COPILOT_GITHUB_TOKEN, SW_GIT_TOKEN, or GITHUB_TOKEN)"
+                "(set GITHUB_TOKEN, SW_GIT_TOKEN, or COPILOT_GITHUB_TOKEN)"
             )
         return cls.from_token(token)
 

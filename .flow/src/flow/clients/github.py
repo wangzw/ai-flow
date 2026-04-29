@@ -72,6 +72,25 @@ class GitHubClient:
     def comment(self, issue, body: str):
         return issue.create_comment(body)
 
+    def update_comment(self, issue, comment_id: int, body: str):
+        """Edit the body of an existing comment by id (PyGithub IssueComment)."""
+        comment = issue.get_comment(comment_id)
+        comment.edit(body)
+        return comment
+
+    def upsert_comment(self, issue, comment_id: int | None, body: str):
+        """Update comment if id present and still exists, else create a new one.
+
+        Returns the comment object so callers can persist its id.
+        """
+        if comment_id is not None:
+            try:
+                return self.update_comment(issue, comment_id, body)
+            except Exception:
+                # Comment was deleted or no longer accessible — fall back to create.
+                pass
+        return self.comment(issue, body)
+
     def update_issue_body(self, issue, new_body: str) -> None:
         issue.edit(body=new_body)
 

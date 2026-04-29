@@ -55,6 +55,14 @@ class FakeGhClient:
 
     def comment(self, issue, body):
         self.calls.append(("comment", issue.number, body[:80]))
+        cid = 9000 + len(self.calls)
+        return type("C", (), {"id": cid, "body": body})()
+
+    def upsert_comment(self, issue, comment_id, body):
+        if comment_id is not None:
+            self.calls.append(("update_comment", issue.number, comment_id, body[:80]))
+            return type("C", (), {"id": comment_id, "body": body})()
+        return self.comment(issue, body)
 
     def update_issue_body(self, issue, body):
         issue.body = body

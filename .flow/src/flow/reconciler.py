@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from flow.clients.github import GitHubClient
+from flow.comment_writer import build_plan_board_comment
 from flow.manifest import (
     GoalBody,
     ManifestEntry,
@@ -35,6 +36,59 @@ def _state_of(labels: list[str]) -> str | None:
         if n in EXTERNAL_STATES:
             return n
     return None
+
+
+def _upsert_plan_board(
+    *,
+    client: GitHubClient,
+    goal_issue,
+    goal_body: GoalBody,
+    planner_result,
+    current_children: list[CurrentChild],
+) -> None:
+    """Create or update the goal-issue plan/progress comment."""
+    children_progress = []
+    by_task = {c.task_id: c for c in current_children}
+    for entry in goal_body.manifest:
+        c = by_task.get(entry.task_id)
+        if c is not None:
+            title = c.body.spec.goal if c.body and c.body.spec else c.issue.title
+            state = c.state_label
+        else:
+            title = ""
+            state = entry.state
+        children_progress.append({
+            "task_id": entry.task_id,
+            "issue": entry.issue,
+            "state": state,
+            "title": title,
+            "deps": list(entry.deps or []),
+        })
+
+    summary = ""
+    if planner_result.status == "done":
+        summary = planner_result.summary or "Goal complete."
+    elif planner_result.status == "blocked":
+        blk = planner_result.blocker or {}
+        summary = f"⚠️ Planner 阻塞：{blk.get('question', '需要人类决策')}"
+
+    body = build_plan_board_comment(
+        iteration=goal_body.agent_state.planner_iteration,
+        last_run=goal_body.agent_state.last_planner_run,
+        status=planner_result.status,
+        summary=summary,
+        desired_plan=list(planner_result.desired_plan or []),
+        children_progress=children_progress,
+    )
+
+    try:
+        comment = client.upsert_comment(
+            goal_issue, goal_body.agent_state.plan_comment_id, body
+        )
+        if comment is not None:
+            goal_body.agent_state.plan_comment_id = int(getattr(comment, "id", 0)) or None
+    except Exception as exc:
+        print(f"[reconciler] plan-board upsert failed: {exc}", flush=True)
 
 
 def reconcile(
@@ -64,6 +118,11 @@ def reconcile(
         )
         client.comment(goal_issue, comment)
         client.set_state_label(goal_issue, "needs-human")
+        _upsert_plan_board(
+            client=client, goal_issue=goal_issue, goal_body=goal_body,
+            planner_result=planner_result, current_children=current_children,
+        )
+        client.update_issue_body(goal_issue, goal_body.to_body())
         emit(EVENTS.PLANNER_BLOCKED, issue_iid=goal_issue.number)
         return
 
@@ -82,6 +141,11 @@ def reconcile(
             return
         client.comment(goal_issue, planner_result.summary or "Goal complete.")
         client.set_state_label(goal_issue, "agent-done")
+        _upsert_plan_board(
+            client=client, goal_issue=goal_issue, goal_body=goal_body,
+            planner_result=planner_result, current_children=current_children,
+        )
+        client.update_issue_body(goal_issue, goal_body.to_body())
         client.close_issue(goal_issue)
         emit(EVENTS.GOAL_DONE, issue_iid=goal_issue.number)
         return
@@ -200,6 +264,13 @@ def reconcile(
     goal_body.agent_state.last_planner_run = datetime.now(timezone.utc).isoformat()
     goal_body.agent_state.dispatch_lock = None  # release; Coordinator owns this in §9
 
+    client.update_issue_body(goal_issue, goal_body.to_body())
+
+    _upsert_plan_board(
+        client=client, goal_issue=goal_issue, goal_body=goal_body,
+        planner_result=planner_result, current_children=current_children,
+    )
+    # Persist the (possibly newly-stored) plan_comment_id back into the body.
     client.update_issue_body(goal_issue, goal_body.to_body())
 
     emit(EVENTS.PLANNER_RECONCILED, issue_iid=goal_issue.number,

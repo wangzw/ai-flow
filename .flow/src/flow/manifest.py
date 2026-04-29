@@ -136,6 +136,7 @@ class GoalAgentState:
     planner_iteration: int = 0
     dispatch_lock: dict | None = None  # {run_id, acquired_at}
     failed_env_count: int = 0          # tree-level throttle counter (§8.4)
+    plan_comment_id: int | None = None  # GitHub issue-comment ID for plan/progress board
 
     def to_dict(self) -> dict:
         return {
@@ -144,6 +145,7 @@ class GoalAgentState:
             "planner_iteration": self.planner_iteration,
             "dispatch_lock": self.dispatch_lock,
             "failed_env_count": self.failed_env_count,
+            "plan_comment_id": self.plan_comment_id,
         }
 
     @classmethod
@@ -155,6 +157,8 @@ class GoalAgentState:
             planner_iteration=int(d.get("planner_iteration") or 0),
             dispatch_lock=d.get("dispatch_lock"),
             failed_env_count=int(d.get("failed_env_count") or 0),
+            plan_comment_id=(int(d["plan_comment_id"])
+                             if d.get("plan_comment_id") is not None else None),
         )
 
 

@@ -128,6 +128,15 @@ def process_merge_queue(
             tb = TaskBody.parse(issue.body or "")
             tb.artifacts.append({"pr": head.number, "branch": head.head.ref})
             client.update_issue_body(issue, tb.to_body())
+            # Explicitly close the task issue. GitHub's auto-close from
+            # "Closes #N" in PR body is unreliable when the PR is merged via
+            # API by the github-actions bot.
+            try:
+                if issue.state != "closed":
+                    issue.edit(state="closed")
+            except Exception as exc:
+                print(f"[merge-queue] close task #{task_issue_number} failed: {exc}",
+                      flush=True)
 
             # Find parent goal and dispatch flow-issue.yml for Planner re-entry.
             goal_num = tb.goal_issue

@@ -42,84 +42,176 @@ class ReviewResult:
 
 _DIMENSION_PROMPTS: dict[str, str] = {
     "spec_compliance": (
-        "spec_compliance — Verify EVERY task.spec.quality_criteria item is satisfied "
-        "by the diff (code + tests). Do NOT invent extra requirements."
+        "spec_compliance — For EACH item in `task.spec.quality_criteria`, locate the diff "
+        "hunk and/or test that satisfies it. PASS only when every item has clear evidence. "
+        "FAIL listing the specific unmet criteria. Do NOT invent additional requirements "
+        "not in the spec. Do NOT FAIL because of stylistic preferences."
     ),
     "test_quality": (
-        "test_quality — Tests have non-empty assertions, are not tautologies, were not "
-        "weakened to fit a buggy implementation, and exercise the actual behavior."
+        "test_quality — Every test added/modified must (a) contain non-empty assertions on "
+        "real values, (b) NOT be tautological (`assert True`, `assert x == x`), (c) NOT have "
+        "been weakened to fit a buggy implementation, and (d) actually exercise the new "
+        "production code path. PASS when these hold. FAIL with the offending test name."
     ),
     "security": (
-        "security — OWASP top-10 risks (injection, auth, data exposure)."
+        "security — Scan the diff for OWASP top-10 risks: SQL/command injection, hardcoded "
+        "secrets, missing auth/authz checks, sensitive-data leaks in logs, unsafe "
+        "deserialisation, SSRF, path traversal. If none introduced, PASS with reason "
+        "'no security-relevant changes' (and a one-line justification). Do NOT FAIL on "
+        "speculative risks unrelated to the diff."
     ),
     "consistency": (
-        "consistency — Lint clean, naming/style/conventions follow project norms."
+        "consistency — Check naming, file layout, and style match neighbouring code in the "
+        "same module (look at sibling files). Look for lint/format violations the project "
+        "enforces. PASS when conventions are followed. FAIL only when there is a clear "
+        "deviation; don't FAIL on minor preferences."
     ),
     "migration_safety": (
-        "migration_safety — DB/data migration is safe & reversible. If no migration, "
-        "PASS with reason 'no migration'."
+        "migration_safety — If the diff includes a DB schema change, data migration, or "
+        "format change in persisted state, verify it is reversible and has up/down logic. "
+        "If no such change exists, PASS with reason 'no migration in this diff'."
     ),
     "performance": (
-        "performance — Regression vs baseline. If no baseline, PASS with reason 'no baseline'."
+        "performance — Look for obvious regressions (N+1 queries, sync calls in hot loops, "
+        "unbounded recursion, large in-memory copies). PASS unless you can point to a "
+        "specific concrete regression. If no benchmarking baseline exists, PASS with "
+        "reason 'no baseline; no obvious regression in diff'."
     ),
     "documentation_sync": (
-        "documentation_sync — Docs/README/comments consistent with code changes."
+        "documentation_sync — When code changes affect public behaviour visible to users "
+        "or operators (CLI flags, config keys, public APIs, README'd flows), verify the "
+        "corresponding docs/README/code-comments were updated in the SAME diff. If the "
+        "change is purely internal (refactor, internal helper, test-only), PASS with "
+        "reason 'internal-only change; no doc impact'."
     ),
 }
 
 
-_COMBINED_PROMPT_TEMPLATE = """You are a senior code reviewer. Review the diff in this repo
-against the dimensions below.
+_COMBINED_PROMPT_TEMPLATE = """You are the **Reviewer agent** in the ai-flow framework. You evaluate ONE
+pull request against a fixed set of dimensions and emit a single YAML marker
+file with your verdicts. The Coordinator (Python code) reads your marker to
+decide whether the PR can merge or needs another iteration.
 
-Project root: {cwd}
-PR #: {pr}
-Task ID: {task_id}
-Base branch: {base}
-Iteration: {iteration}
+You are running inside a fresh git clone with the PR branch checked out.
+Your `cwd` is the project root.
 
-# Task spec (the ONLY source of requirements; spec_compliance judges against this)
+================================================================
+# Step 0 — Workdir layout (canonical)
+================================================================
+
+- Project root (your `cwd`):     `{cwd}`
+- Base branch (already fetched): `origin/{base}`
+- Current HEAD:                   the PR branch under review
+- **Marker file (your output)**: `{cwd}/.review/aggregate.yaml`
+
+The `.review/` directory does NOT exist yet — create it with `mkdir -p
+.review` before writing the marker. Always write to exactly that one path.
+
+================================================================
+# Step 1 — Read the task spec (the contract)
+================================================================
+
+PR #: `{pr}`        Task ID: `{task_id}`        Iteration: `{iteration}`
 
 ```yaml
 {task_spec_yaml}
 ```
 
-# What to read (white-list — spec §11)
+This spec is the ONLY source of requirements. The `spec_compliance`
+dimension judges the diff strictly against `quality_criteria` — do NOT
+add or imply requirements that aren't in the spec.
 
-- The task spec above
-- The diff: `git diff origin/{base}..HEAD`
-- All test files added/modified
-- Code comments in modified files
+================================================================
+# Step 2 — Compute the diff and read evidence
+================================================================
 
-# What you MUST NOT read (channel discipline — spec §11)
+You may ONLY look at:
 
-- git commit messages
-- the PR description / title
-- the Implementer's `.agent/result.yaml` summary
-- any other Reviewer dimension's verdict
+1. The task spec above.
+2. `git diff origin/{base}..HEAD` — the production code + test changes.
+3. The full content of any test file added or modified in that diff.
+4. Code comments inside the modified files.
+5. Sibling files in the same module (for the `consistency` dimension only).
 
-# Dimensions
+You MUST NOT read (channel discipline — spec §11):
+
+- Git commit messages (`git log`, commit subjects/bodies).
+- The PR title or PR description (these are for humans, not reviewers).
+- The Implementer's `.agent/result.yaml` summary.
+- Any other Reviewer dimension's verdict (each dimension is independent).
+
+If the diff is empty or `git diff` errors out, write the marker with every
+dimension `verdict: fail`, `reason: "could not compute diff against
+origin/{base}"` — do NOT silently exit.
+
+================================================================
+# Step 3 — Evaluate each dimension
+================================================================
+
+For each dimension below, render an independent verdict (`pass` or `fail`)
+and a one-line `reason`. Be specific in failure reasons — cite the file +
+quality_criterion or test name that failed. Vague reasons ("looks bad",
+"needs more tests") cause review death-loops because the Implementer cannot
+act on them.
 
 {dimensions_block}
 
-# Iteration history (this PR; only your prior verdicts on these dimensions)
+================================================================
+# Step 4 — Iteration history
+================================================================
 
+These are your own prior verdicts on this PR (you, the Reviewer, in earlier
+iterations). The Implementer has presumably tried to address each FAIL —
+look at the diff and decide whether the issue is resolved.
+
+```yaml
 {prior_history_yaml}
+```
 
-# Output (REQUIRED)
+If you are about to fail a dimension that you previously failed for the same
+reason, double-check the diff: either the Implementer didn't address it (FAIL
+is correct) or the criterion is impossible/unfair given the current spec (in
+which case still FAIL, but make the reason precise enough that the Planner
+can rewrite the spec on arbitration).
 
-Write ONE marker file `.review/aggregate.yaml` with this exact structure:
+================================================================
+# Step 5 — Write the marker file
+================================================================
 
-  mkdir -p .review
-  cat > .review/aggregate.yaml <<'EOF'
-  schema_version: 1
-  iteration: {iteration}
-  dimensions:
-    - dim: spec_compliance
-      verdict: pass     # or fail
-      reason: <one-line>
-{example_dims}  EOF
+```sh
+mkdir -p .review
+```
 
-Then exit. Be efficient: read each file once.
+Write `{cwd}/.review/aggregate.yaml` with EXACTLY this structure (one entry
+per enabled dimension):
+
+```yaml
+schema_version: 1
+iteration: {iteration}
+dimensions:
+  - dim: spec_compliance
+    verdict: pass             # lowercase: pass | fail
+    reason: "Each quality_criterion has a corresponding test in tests/test_foo.py."
+{example_dims}```
+
+Notes:
+- `verdict` is lowercase (`pass` / `fail`); no other values.
+- `reason` is a single line, ≤ 200 chars, concrete and actionable on FAIL.
+- Include EVERY enabled dimension. Missing dimensions are treated as FAIL.
+- Do NOT include any prose before/after the YAML.
+
+================================================================
+# Hard rules
+================================================================
+
+1. **Be efficient.** Read each file at most once.
+2. **Be objective.** Disagree with stylistic preferences — only fail on
+   things the spec or project conventions actually require.
+3. **Failure reasons must be actionable.** "Implement it correctly" is not
+   actionable. "tests/test_foo.py::test_bar lacks an assertion on the
+   return value" is.
+4. **Write the marker.** Exiting without `{cwd}/.review/aggregate.yaml` is
+   treated as failed-env and forces the PR into `needs-human`.
 """
 
 

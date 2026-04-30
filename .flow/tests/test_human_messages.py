@@ -41,7 +41,7 @@ def test_reviewer_max_iterations_lists_dims_with_reasons():
     assert "新增公共 API 缺少单元测试" in msg
     # actionable
     assert "下一步" in msg
-    assert "/agent retry" in msg
+    assert "/agent resume" in msg
     assert "/agent abort" in msg
     # history fenced (machine-readable)
     assert "<details>" in msg
@@ -85,7 +85,7 @@ def test_planner_no_marker_comment_includes_blocker_yaml():
     assert "退出码：`1`" in msg
     assert "<details>" in msg
     assert "stderr" in msg
-    assert "/agent retry" in msg
+    assert "/agent resume" in msg
 
 
 def test_failed_env_messages_include_category_and_attempts():
@@ -93,7 +93,7 @@ def test_failed_env_messages_include_category_and_attempts():
     assert "`rate_limit`" in exhausted
     assert "**4**" in exhausted
     assert "needs-human" in exhausted
-    assert "/agent retry" in exhausted
+    assert "/agent resume" in exhausted
 
     pending = failed_env_retry_pending_comment(
         category="rate_limit", attempts=2, next_at="2026-04-30T08:00:00+00:00",
@@ -132,3 +132,25 @@ def test_simple_messages_format_correctly():
     sched = schedule_retry_dispatch_comment(now_iso="2026-04-30T08:00:00+00:00")
     assert "⏰" in sched
     assert "2026-04-30T08:00:00+00:00" in sched
+
+
+def test_no_message_advises_retry_from_needs_human():
+    """`/agent retry` is only valid from `agent-working` per the state
+    machine. All builders that move the issue into `needs-human` (or fire
+    on a PR whose task is now `needs-human`) must NOT advise `/agent
+    retry`, otherwise users hit ``❌ 当前状态 needs-human 不接受 /agent
+    retry``.
+    """
+    needs_human_messages = [
+        reviewer_max_iterations_comment(
+            pr_number=1, iteration=5,
+            failed_dimensions=["spec_compliance"], reasons={}, history=None,
+        ),
+        planner_no_marker_comment(blocker={"blocker_type": "no_result_marker"}),
+        task_missing_frontmatter_comment(),
+        failed_env_exhausted_comment(category="rate_limit", attempts=3),
+    ]
+    for msg in needs_human_messages:
+        assert "/agent retry" not in msg, (
+            f"message advises /agent retry but post-state is needs-human:\n{msg}"
+        )

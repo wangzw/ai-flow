@@ -42,5 +42,13 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.ruff.lint.per-file-ignores]
+# Prompt templates contain long YAML/example lines that must stay verbatim
+# in the rendered prompt; line breaks at source level would corrupt the
+# YAML examples shown to the agent.
+"src/flow/planner.py" = ["E501"]
+"src/flow/coder.py" = ["E501"]
+"src/flow/reviewer.py" = ["E501"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["flow"]

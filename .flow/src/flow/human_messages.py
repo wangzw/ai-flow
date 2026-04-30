@@ -7,7 +7,7 @@ Goal: every comment the framework posts to a human must be:
 * **Specific** — name the failing dimension, the file, the iteration, the
   retry budget left. Include the data the human needs to act.
 * **Actionable** — end with a "下一步" section that lists the concrete
-  commands the human can run (`/agent retry`, `/agent abort`, …) or the
+  commands the human can run (`/agent resume`, `/agent abort`, …) or the
   link they should open.
 * **Two-layer** — when the message also carries machine-readable state,
   wrap that payload in a fenced ```yaml block so scripts can parse it
@@ -81,9 +81,10 @@ def reviewer_max_iterations_comment(
 
     parts.append(_next_steps([
         f"打开 PR #{pr_number}，结合上面的失败原因决定下一步。",
-        "若希望沿当前方向再试一轮，评论 `/agent retry`。",
+        "若希望沿当前方向再试一轮，评论 `/agent resume`"
+        "（从 `needs-human` 重新进入 `agent-working`）。",
         "若需要换思路，编辑该 task issue 的 spec（goal / quality_criteria）后"
-        "评论 `/agent resume`。",
+        "再评论 `/agent resume`。",
         "若任务无法继续，评论 `/agent abort` 终止；或评论 `/agent escalate` 把问题上抛到 Goal。",
     ]))
     return "\n".join(parts) + "\n"
@@ -149,8 +150,8 @@ def planner_no_marker_comment(*, blocker: dict[str, Any]) -> str:
     parts.append(_next_steps([
         "查看本次 workflow run 的 `flow-issue-*` artifact，"
         "里面有 `host-logs/planner/copilot-stdout.log`。",
-        "排除问题后评论 `/agent retry` 重新触发 Planner。",
-        "若是 Planner 行为异常，评论 `/agent escalate` 上报维护者。",
+        "排除问题后评论 `/agent resume`（从 `needs-human` 进入 `agent-working`）重新触发 Planner。",
+        "若是 Planner 行为异常，评论 `/agent escalate` 上报维护者，或 `/agent abort` 终止 Goal。",
     ]))
     return "\n".join(parts) + "\n"
 
@@ -174,7 +175,8 @@ def failed_env_exhausted_comment(*, category: str, attempts: int) -> str:
         "已切换为 `needs-human` 等待人工排查环境问题（quota、网络、token 权限等）。\n\n"
         "### 👉 下一步\n"
         f"- 参考 workflow run 日志确认 `{category}` 类失败的根因。\n"
-        "- 修复环境后评论 `/agent retry` 重置计数并重新调度。\n"
+        "- 修复环境后评论 `/agent resume` 重置计数并从 `needs-human` 重新调度。\n"
+        "- 若问题暂时无法解决，评论 `/agent abort` 终止任务。\n"
     )
 
 

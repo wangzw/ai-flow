@@ -55,7 +55,10 @@ def handle_comment_created() -> int:
             build_ack_comment(
                 command=cmd.name,
                 accepted=False,
-                reason=f"无效的状态转换：{current!r} -- {cmd.name} -->",
+                reason=(
+                    f"当前状态 `{current}` 不接受 `/agent {cmd.name}`。"
+                    f"请检查 issue 的状态标签，或先用其它命令切换状态。"
+                ),
             ),
         )
         return 0

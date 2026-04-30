@@ -35,16 +35,7 @@ VALID_COMMANDS = {
 # Commands that take an argument (rest-of-line).
 COMMANDS_WITH_ARG = {"decide", "replan"}
 
-# `/agent` must be preceded by start-of-line OR whitespace (so we ignore
-# inline-code/quoted occurrences like `\`/agent resume\``). It does NOT
-# need to be at the very start of a line — humans often write a short
-# preface, e.g. "rebase main then /agent resume". The command + optional
-# argument extend to end-of-line, matching the existing rest-of-line
-# semantics for `decide <id>` / `replan [hint]`.
-_COMMAND_RE = re.compile(
-    r"(?:^|(?<=\s))/agent[ \t]+(\w+)(?:[ \t]+([^\n]*?))?[ \t]*$",
-    re.MULTILINE,
-)
+_COMMAND_RE = re.compile(r"^/agent[ \t]+(\w+)(?:[ \t]+([^\n]*?))?[ \t]*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)

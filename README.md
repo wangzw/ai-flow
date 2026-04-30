@@ -30,6 +30,36 @@ flow doctor      --repo <owner/repo>       # check secrets / workflows
 Then file a `type:goal` Issue (using the goal template), label it
 `agent-ready`, and let the framework go.
 
+## Using ai-flow in another repository
+
+To add ai-flow's goal/task scheduling to a different repository, start from an
+ai-flow checkout so you have the CLI available:
+
+```bash
+pip install -e ./.flow
+```
+
+Then switch to the target repository and bootstrap the workflow assets:
+
+```bash
+flow init
+```
+
+`flow init` bootstraps `.flow/`, `.github/workflows/`, and
+`.github/ISSUE_TEMPLATE/goal.md` into the target repository, and also writes a
+starter `.flow/config.yml` for repository-specific settings.
+
+After that, configure `.flow/config.yml` and register the ai-flow labels and
+health checks for the target repository:
+
+```bash
+flow apply-labels --repo <owner/repo>
+flow doctor --repo <owner/repo>
+```
+
+Once the generated files are committed, create a `type:goal` issue and label it
+`agent-ready` to let the scheduler start decomposing the goal into tasks.
+
 ## Design principles
 
 - **Reactive reconciliation, not orchestration.** Every event (label change,

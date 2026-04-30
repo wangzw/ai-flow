@@ -75,13 +75,11 @@ def init(target: str, force: bool) -> None:
     cfg_dst = target_root / ".flow" / "config.yml"
     _copy_file(cfg_src, cfg_dst, force)
 
-    # 4) Prompts (informational only — actual prompts are inlined in code)
-    prompts_src = BOOTSTRAP_ROOT / "prompts"
-    if prompts_src.exists():
-        prompts_dst = target_root / ".flow" / "prompts"
-        prompts_dst.mkdir(parents=True, exist_ok=True)
-        for fp in prompts_src.glob("*.md"):
-            _copy_file(fp, prompts_dst / fp.name, force)
+    # NOTE: We deliberately do NOT ship a `prompts/` directory. The agent
+    # prompts are inlined in flow/{planner,coder,reviewer}.py and applied
+    # via .format(); copying out-of-date stub markdown files into target
+    # repos only causes confusion ("can I edit this to change the agent?"
+    # — no, it's not loaded at runtime).
 
     click.echo("\n✅ flow init complete. Next:")
     click.echo("  1. flow apply-labels --repo <owner/repo>")

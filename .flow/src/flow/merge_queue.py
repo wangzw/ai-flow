@@ -70,6 +70,14 @@ def process_merge_queue(
             _clone_repo(clone_url, repo_path, branch=head.head.ref)
         except Exception as exc:
             print(f"[merge_queue] clone failed: {exc}; dequeueing", flush=True)
+            from flow.human_messages import merge_queue_clone_failed_comment
+
+            try:
+                head.create_comment(merge_queue_clone_failed_comment(
+                    branch=head.head.ref, reason=str(exc),
+                ))
+            except Exception:
+                pass
             head.remove_from_labels(QUEUE_LABEL)
             return 1
 
@@ -111,11 +119,54 @@ def process_merge_queue(
             return 1
 
     print(f"[merge_queue] merging PR #{head.number}...", flush=True)
-    head.merge(
-        merge_method="rebase",
-        commit_title=f"Merge PR #{head.number}",
-        delete_branch=True,
-    )
+    try:
+        head.merge(
+            merge_method="rebase",
+            commit_title=f"Merge PR #{head.number}",
+            delete_branch=True,
+        )
+    except Exception as exc:
+        from flow.human_messages import merge_failed_comment
+
+        msg = str(exc)
+        low = msg.lower()
+        if "conflict" in low or "not mergeable" in low or "merge conflict" in low:
+            classification = "conflict"
+        elif "required status check" in low or "branch protection" in low \
+                or "required" in low and "check" in low:
+            classification = "required_check"
+        elif "stale" in low or "behind" in low or "out of date" in low:
+            classification = "stale"
+        else:
+            classification = "other"
+        print(f"[merge_queue] merge failed ({classification}): {exc}", flush=True)
+        try:
+            head.create_comment(merge_failed_comment(
+                reason=msg, classification=classification,
+            ))
+        except Exception:
+            pass
+        try:
+            head.remove_from_labels(QUEUE_LABEL)
+        except Exception:
+            pass
+        task_issue_number = _extract_closing_issue_number(head.body or "")
+        if task_issue_number is not None:
+            try:
+                issue = repo.get_issue(task_issue_number)
+                if classification in ("conflict", "stale"):
+                    # Re-dispatch Implementer to rebase / fix
+                    client.set_state_label(issue, "agent-ready")
+                    try:
+                        from flow.dispatch_actions import dispatch_issue
+                        dispatch_issue(repo.full_name, task_issue_number)
+                    except Exception:
+                        pass
+                else:
+                    client.set_state_label(issue, "agent-working")
+            except Exception:
+                pass
+        return 1
     emit(EVENTS.MERGED, pr_number=head.number)
 
     # Transition the linked task to agent-done; the cron / scheduled workflow

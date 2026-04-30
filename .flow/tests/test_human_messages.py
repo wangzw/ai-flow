@@ -7,8 +7,13 @@ from flow.human_messages import (
     failed_env_exhausted_comment,
     failed_env_retry_pending_comment,
     goal_complete_comment,
+    implementer_no_marker_comment,
+    implementer_pr_create_failed_comment,
+    merge_failed_comment,
+    merge_queue_clone_failed_comment,
     planner_false_done_comment,
     planner_no_marker_comment,
+    review_clone_failed_comment,
     reviewer_arbitration_dispatched_comment,
     reviewer_max_iterations_comment,
     schedule_retry_dispatch_comment,
@@ -154,3 +159,71 @@ def test_no_message_advises_retry_from_needs_human():
         assert "/agent retry" not in msg, (
             f"message advises /agent retry but post-state is needs-human:\n{msg}"
         )
+
+
+def test_implementer_no_marker_includes_blocker_type_and_next_steps():
+    msg = implementer_no_marker_comment(
+        blocker_type="no_result_marker",
+        raw=None,
+    )
+    assert "no_result_marker" in msg
+    assert "needs-human" in msg
+    assert "/agent resume" in msg
+    assert "/agent abort" in msg
+    assert "/agent replan" in msg
+    # Must NOT route through env-retry messaging
+    assert "环境性失败" not in msg
+    assert "/agent retry" not in msg
+
+
+def test_implementer_no_marker_with_raw_renders_yaml():
+    msg = implementer_no_marker_comment(
+        blocker_type="unknown_status",
+        raw={"status": "wat", "task_id": "T-x"},
+    )
+    assert "```yaml" in msg
+    assert "unknown_status" in msg
+    assert "wat" in msg
+
+
+def test_implementer_pr_create_failed_explains_non_env_nature():
+    msg = implementer_pr_create_failed_comment(
+        reason="A pull request already exists for owner:branch.",
+        branch="agent/T-foo",
+    )
+    assert "agent/T-foo" in msg
+    assert "branch protection" in msg or "PR 已存在" in msg
+    assert "needs-human" in msg
+    assert "/agent retry" not in msg
+
+
+def test_review_clone_failed_mentions_branch_and_resume():
+    msg = review_clone_failed_comment(
+        branch="agent/T-x", reason="fatal: unable to access ...",
+    )
+    assert "agent/T-x" in msg
+    assert "/agent resume" in msg
+
+
+def test_merge_queue_clone_failed_explains_dequeue():
+    msg = merge_queue_clone_failed_comment(
+        branch="agent/T-x", reason="fatal: clone failed",
+    )
+    assert "merge-queued" in msg
+    assert "agent/T-x" in msg
+
+
+def test_merge_failed_classifies_conflict_and_protection():
+    conflict = merge_failed_comment(
+        reason="Pull Request is not mergeable", classification="conflict",
+    )
+    assert "conflict" in conflict
+    assert "rebase" in conflict.lower() or "rebase" in conflict
+
+    protection = merge_failed_comment(
+        reason="Required status check is missing",
+        classification="required_check",
+    )
+    assert "required_check" in protection
+    assert "branch protection" in protection.lower() \
+        or "branch protection" in protection

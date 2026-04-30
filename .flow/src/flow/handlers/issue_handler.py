@@ -357,7 +357,43 @@ def _run_implementer_for_task(*, repo, task_issue, task_body, gh: GitHubClient,
              blocker_type=blocker.get("type"))
         return None
 
-    # subprocess_error / no_marker → failed-env
+    # no_marker / unknown_status / pr_create_failed → 内容性失败，直接 needs-human
+    # （不要走 failed-env 退避重试，那是给 model_5xx / rate_limit / sandbox_oom 等
+    # 真正的环境性故障准备的）
+    if result.status in ("no_marker", "pr_create_failed"):
+        from flow.human_messages import (
+            implementer_no_marker_comment,
+            implementer_pr_create_failed_comment,
+        )
+
+        blocker = result.blocker or {}
+        if result.status == "pr_create_failed":
+            gh.comment(
+                task_issue,
+                implementer_pr_create_failed_comment(
+                    reason=str(blocker.get("reason", "")),
+                    branch=str(result.branch_name or ""),
+                ),
+            )
+        else:
+            gh.comment(
+                task_issue,
+                implementer_no_marker_comment(
+                    blocker_type=str(blocker.get("blocker_type", "no_result_marker")),
+                    raw=blocker.get("raw") if isinstance(blocker.get("raw"), dict)
+                    else None,
+                ),
+            )
+        task_body.agent_state.stage = "blocked"
+        task_body.agent_state.blocker_type = blocker.get("blocker_type")
+        task_body.agent_state.blocker_details = blocker
+        gh.update_issue_body(task_issue, task_body.to_body())
+        gh.set_state_label(task_issue, "needs-human")
+        emit(EVENTS.CODER_BLOCKER, issue_iid=task_issue.number,
+             blocker_type=blocker.get("blocker_type"))
+        return None
+
+    # subprocess_error → failed-env (model 5xx / rate limit / sandbox OOM / quota / …)
     from flow.retry import classify_blocker, compute_next_attempt
 
     blocker = result.blocker or {}

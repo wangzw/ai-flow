@@ -257,6 +257,114 @@ def goal_complete_comment(*, summary: str | None) -> str:
     )
 
 
+def implementer_no_marker_comment(
+    *, blocker_type: str, raw: dict | None = None,
+    stdout_tail: str = "", stderr_tail: str = "",
+) -> str:
+    """A2/A3: Implementer 没有产出有效 result.yaml（区别于环境性失败）。"""
+    head = (
+        "## ❌ Implementer 未产出有效 result.yaml\n\n"
+        f"分类：**`{blocker_type}`**。这通常**不是环境问题**，而是模型未能按约定写入 "
+        "`.agent/result.yaml`（status 为 `done` 或 `blocked`）。盲目重试会浪费配额，"
+        "已直接切换为 `needs-human` 等待排查。\n\n"
+    )
+    debug_parts: list[str] = []
+    if raw:
+        debug_parts.append("**收到的（无效）marker：**\n\n" + _yaml_block(raw))
+    if stdout_tail.strip():
+        debug_parts.append(
+            "**stdout 末尾：**\n\n```\n" + stdout_tail.strip()[-1500:] + "\n```"
+        )
+    if stderr_tail.strip():
+        debug_parts.append(
+            "**stderr 末尾：**\n\n```\n" + stderr_tail.strip()[-1500:] + "\n```"
+        )
+    debug = ("\n\n".join(debug_parts) + "\n\n") if debug_parts else ""
+    next_steps = _next_steps([
+        "查看上述输出与 `host-logs/implementer/` 里的完整日志，确认根因。",
+        "若是 spec 不清晰：在 **Goal issue** 上 `/agent replan <hint>` 重新规划。",
+        "若环境/Token 等已修复并希望直接重试：评论 `/agent resume`。",
+        "若任务无法执行：评论 `/agent abort` 终止。",
+    ])
+    return head + debug + next_steps + "\n"
+
+
+def implementer_pr_create_failed_comment(*, reason: str, branch: str) -> str:
+    """A5: PR 创建失败（多半是 PR 已存在 / branch protection / 冲突等非自愈问题）。"""
+    return (
+        "## ❌ PR 创建失败\n\n"
+        f"分支：`{branch}`\n\n"
+        f"GitHub 返回：\n\n```\n{reason.strip()[:1500]}\n```\n\n"
+        "这通常**不是环境性故障**，常见原因：\n"
+        "- 该分支已存在打开的 PR（请检查 `pulls?head=...`）。\n"
+        "- 目标分支启用了 branch protection 而当前 actor 缺少权限。\n"
+        "- head 与 base 之间没有差异，或仓库设置不允许从该分支创建 PR。\n\n"
+        "已切换为 `needs-human`，避免无意义重试。\n\n"
+        + _next_steps([
+            "排查上述原因，必要时手工创建 PR 后评论 `/agent resume`。",
+            "若需要重新规划：在 Goal issue 上 `/agent replan <hint>`。",
+            "若放弃此任务：评论 `/agent abort`。",
+        ])
+        + "\n"
+    )
+
+
+def review_clone_failed_comment(*, branch: str, reason: str) -> str:
+    """B6: Reviewer 阶段克隆失败 — 当作 infra 类失败提示，调度自动重试。"""
+    return (
+        "## ⚠️ Reviewer 无法克隆 PR 分支\n\n"
+        f"分支：`{branch}`\n\n"
+        f"错误：\n\n```\n{reason.strip()[:1500]}\n```\n\n"
+        "Reviewer 跳过本轮评审。已尝试将关联 task 切换为 `needs-human`，"
+        "请在网络/Token 修复后重新触发评审（评论 `/agent resume`）。\n"
+    )
+
+
+def merge_queue_clone_failed_comment(*, branch: str, reason: str) -> str:
+    """C3: Merge queue 阶段克隆失败 — 静默踢出会让用户困惑，给出明确解释。"""
+    return (
+        "## ⚠️ Merge queue 无法克隆 PR 分支\n\n"
+        f"分支：`{branch}`\n\n"
+        f"错误：\n\n```\n{reason.strip()[:1500]}\n```\n\n"
+        "已从合并队列移除（去掉 `merge-queued` 标签）。请在排查后重新加上 "
+        "`merge-queued` 标签或评论 `/agent resume` 重新进入队列。\n"
+    )
+
+
+def merge_failed_comment(*, reason: str, classification: str) -> str:
+    """C4: head.merge() 抛异常 — 分类后给出修复建议。"""
+    hints: dict[str, str] = {
+        "conflict": (
+            "PR 与 base 分支存在冲突，需要 rebase 后再次评审。"
+            "Implementer 将被重新调度以解决冲突。"
+        ),
+        "required_check": (
+            "目标分支的 branch protection 要求的 status check 缺失或未通过。"
+            "请在 GitHub Settings → Branches 中检查保护规则，或等待 CI 完成。"
+        ),
+        "stale": (
+            "PR 已不在最新状态（base 分支推进了），需要 rebase。"
+            "Implementer 将被重新调度。"
+        ),
+        "other": "未识别的合并错误，请查看下方原始错误信息。",
+    }
+    hint = hints.get(classification, hints["other"])
+    return (
+        "## ❌ 合并失败\n\n"
+        f"分类：**`{classification}`**\n\n"
+        f"{hint}\n\n"
+        f"GitHub API 错误：\n\n```\n{reason.strip()[:1500]}\n```\n\n"
+        "已从合并队列移除（去掉 `merge-queued` 标签），关联 task 切回 "
+        "`agent-working` 等待新一轮 Implementer 处理。\n\n"
+        + _next_steps([
+            "若是冲突 / stale：等待自动重新调度的 Implementer 完成 rebase。",
+            "若是 branch protection：人工调整保护规则后评论 `/agent resume`。",
+            "若放弃合并：手动关闭此 PR 并评论 `/agent abort` 终止任务。",
+        ])
+        + "\n"
+    )
+
+
 def task_cancelled_by_planner_comment(*, reason: str | None = None) -> str:
     why = reason or "Planner 在新一轮 reconcile 中将该任务移出了 desired plan。"
     return (

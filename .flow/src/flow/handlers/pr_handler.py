@@ -60,6 +60,19 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
         _clone_repo(clone_url, repo_path, branch=pr.head.ref)
     except Exception as exc:
         print(f"[pr_ready] clone failed: {exc}", flush=True)
+        from flow.human_messages import review_clone_failed_comment
+
+        try:
+            gh.comment(pr, review_clone_failed_comment(
+                branch=pr.head.ref, reason=str(exc),
+            ))
+        except Exception:
+            pass
+        if task_issue is not None:
+            try:
+                gh.set_state_label(task_issue, "needs-human")
+            except Exception:
+                pass
         return 0
 
     iteration = 1

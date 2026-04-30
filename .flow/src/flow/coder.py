@@ -23,7 +23,7 @@ _PROMPT_TEMPLATE = load_prompt("coder")
 
 @dataclass
 class ImplementerResult:
-    status: str  # "done" | "blocked" | "no_marker" | "subprocess_error"
+    status: str  # "done" | "blocked" | "no_marker" | "subprocess_error" | "pr_create_failed"
     pr_number: int | None = None
     branch_name: str = ""
     summary: str = ""
@@ -194,10 +194,12 @@ def run_implementer(
         )
 
     # Done — push the branch (idempotent: agent may already have pushed)
+    push_warning: str | None = None
     try:
         _push_branch(local_repo, branch_name)
     except Exception as exc:
         # Already pushed or push failure; check if PR already exists
+        push_warning = str(exc)
         print(f"[implementer] push warn: {exc}", flush=True)
 
     # Find or create PR
@@ -243,9 +245,13 @@ def run_implementer(
             pr_number = pr.number
         except Exception as exc:
             return ImplementerResult(
-                status="subprocess_error",
+                status="pr_create_failed",
                 branch_name=branch_name,
-                blocker={"blocker_type": "pr_create_failed", "reason": str(exc)},
+                blocker={
+                    "blocker_type": "pr_create_failed",
+                    "reason": str(exc),
+                    "push_warning": push_warning,
+                },
                 workdir=workdir,
                 duration_ms=elapsed_ms,
             )

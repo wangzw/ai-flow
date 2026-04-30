@@ -12,7 +12,29 @@ import click
 from flow import __version__
 from flow.clients.github import ALL_FLOW_LABELS
 
+FLOW_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 BOOTSTRAP_ROOT = Path(__file__).parent / "bootstrap"
+
+
+def _copy_file(src: Path, dst: Path, force: bool) -> None:
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.exists() and not force:
+        click.echo(f"skip (exists): {dst}")
+        return
+    shutil.copy2(src, dst)
+    click.echo(f"wrote {dst}")
+
+
+def _copy_tree(src_root: Path, dst_root: Path, force: bool) -> None:
+    for src in src_root.rglob("*"):
+        rel = src.relative_to(src_root)
+        if "__pycache__" in rel.parts:
+            continue
+        dst = dst_root / rel
+        if src.is_dir():
+            dst.mkdir(parents=True, exist_ok=True)
+            continue
+        _copy_file(src, dst, force)
 
 
 @click.group()
@@ -30,33 +52,28 @@ def init(target: str, force: bool) -> None:
     target_root = Path(target).resolve()
     target_root.mkdir(parents=True, exist_ok=True)
 
+    # The generated workflows install `./.flow` and execute `python -m flow.*`,
+    # so `flow init` must vendor the runtime package into the target repo too.
+    runtime_root = target_root / ".flow"
+    _copy_file(FLOW_PROJECT_ROOT / "pyproject.toml", runtime_root / "pyproject.toml", force)
+    _copy_tree(FLOW_PROJECT_ROOT / "src", runtime_root / "src", force)
+
     # 1) Copy workflows
     workflows_src = BOOTSTRAP_ROOT / "workflows"
     workflows_dst = target_root / ".github" / "workflows"
     workflows_dst.mkdir(parents=True, exist_ok=True)
     for fp in workflows_src.glob("*.yml"):
-        dst = workflows_dst / fp.name
-        if dst.exists() and not force:
-            click.echo(f"skip (exists): {dst}")
-            continue
-        shutil.copy2(fp, dst)
-        click.echo(f"wrote {dst}")
+        _copy_file(fp, workflows_dst / fp.name, force)
 
     # 2) Copy issue template
     it_src = BOOTSTRAP_ROOT / "issue_template" / "goal.md"
     it_dst = target_root / ".github" / "ISSUE_TEMPLATE" / "goal.md"
-    it_dst.parent.mkdir(parents=True, exist_ok=True)
-    if not it_dst.exists() or force:
-        shutil.copy2(it_src, it_dst)
-        click.echo(f"wrote {it_dst}")
+    _copy_file(it_src, it_dst, force)
 
     # 3) Default config
     cfg_src = BOOTSTRAP_ROOT / "config.yml"
     cfg_dst = target_root / ".flow" / "config.yml"
-    cfg_dst.parent.mkdir(parents=True, exist_ok=True)
-    if not cfg_dst.exists() or force:
-        shutil.copy2(cfg_src, cfg_dst)
-        click.echo(f"wrote {cfg_dst}")
+    _copy_file(cfg_src, cfg_dst, force)
 
     # 4) Prompts (informational only — actual prompts are inlined in code)
     prompts_src = BOOTSTRAP_ROOT / "prompts"
@@ -64,11 +81,7 @@ def init(target: str, force: bool) -> None:
         prompts_dst = target_root / ".flow" / "prompts"
         prompts_dst.mkdir(parents=True, exist_ok=True)
         for fp in prompts_src.glob("*.md"):
-            dst = prompts_dst / fp.name
-            if dst.exists() and not force:
-                continue
-            shutil.copy2(fp, dst)
-            click.echo(f"wrote {dst}")
+            _copy_file(fp, prompts_dst / fp.name, force)
 
     click.echo("\n✅ flow init complete. Next:")
     click.echo("  1. flow apply-labels --repo <owner/repo>")

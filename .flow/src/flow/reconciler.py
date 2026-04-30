@@ -286,7 +286,15 @@ def reconcile(
 
 
 def gather_current_children(repo, goal_body: GoalBody) -> list[CurrentChild]:
-    """Read each task Issue listed in manifest; tolerate missing issues."""
+    """Read each task Issue listed in manifest; tolerate missing issues.
+
+    The Goal's manifest is the source of truth for `(task_id, goal_issue)` —
+    if a task issue body has been corrupted or partially overwritten (e.g.
+    earlier serialization wrote `task_id: ''`), we *repair* the body's
+    metadata in-memory from the manifest entry. This avoids a destructive
+    feedback loop where `modify_specs` would otherwise re-serialize the
+    bogus empty `task_id` back to GitHub on the next reconcile.
+    """
     out: list[CurrentChild] = []
     for entry in goal_body.manifest:
         try:
@@ -296,6 +304,10 @@ def gather_current_children(repo, goal_body: GoalBody) -> list[CurrentChild]:
         labels = [lbl.name for lbl in issue.labels]
         state = _state_of(labels) or entry.state
         body = TaskBody.parse(issue.body or "")
+        # Authoritative metadata comes from the goal's manifest, not the
+        # task's own (possibly-corrupted) frontmatter.
+        body.task_id = entry.task_id
+        body.goal_issue = goal_body.issue if hasattr(goal_body, "issue") else body.goal_issue
         out.append(CurrentChild(issue=issue, task_id=entry.task_id,
                                 state_label=state, body=body))
     return out

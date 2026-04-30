@@ -123,8 +123,41 @@ def reviewer_arbitration_dispatched_comment(
 
 
 def planner_no_marker_comment(*, blocker: dict[str, Any]) -> str:
-    """Planner subprocess didn't produce a result.yaml — surface failure context."""
+    """Planner subprocess didn't produce a valid result.yaml — surface context."""
     btype = blocker.get("blocker_type", "unknown")
+
+    if btype == "invalid_marker":
+        attempts = blocker.get("attempts")
+        attempts_txt = f"（已自动重试 {attempts} 次）" if attempts else ""
+        parts = [
+            "## ❌ Planner 输出未通过格式校验",
+            "",
+            f"Planner 写出了 `.flow/result.yaml`，但所有 {attempts or '?'} 次"
+            "尝试都未通过 Python 端的严格 schema 校验"
+            f"{attempts_txt}。已将本 issue 切换为 `needs-human`。",
+            "",
+        ]
+        errors = blocker.get("errors") or []
+        if errors:
+            parts.append("**校验错误（最后一次尝试）：**")
+            for e in errors:
+                parts.append(f"- {e}")
+            parts.append("")
+        marker = blocker.get("marker")
+        if marker:
+            parts.append(_details("最后一次（被拒绝的）result.yaml",
+                                  _yaml_block(marker)))
+            parts.append("")
+        parts.append(_next_steps([
+            "查看 workflow artifact 里 `host-logs/planner/attempt-*/` "
+            "下的 stdout/stderr 日志，确认 Copilot 实际输出。",
+            "若是 Planner prompt 引导不足，提交 PR 改进 "
+            "`.flow/src/flow/planner.py::_PROMPT_TEMPLATE`。",
+            "排除问题后评论 `/agent resume` 重新触发 Planner，"
+            "或 `/agent replan <hint>` 提供更具体的指引。",
+        ]))
+        return "\n".join(parts) + "\n"
+
     parts = [
         "## ❌ Planner 未产出结果",
         "",

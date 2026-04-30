@@ -29,7 +29,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-flow = ["bootstrap/**/*", "bootstrap/**/.*"]
+flow = ["bootstrap/**/*", "bootstrap/**/.*", "prompts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -43,12 +43,8 @@ target-version = "py311"
 select = ["E", "F", "I"]
 
 [tool.ruff.lint.per-file-ignores]
-# Prompt templates contain long YAML/example lines that must stay verbatim
-# in the rendered prompt; line breaks at source level would corrupt the
-# YAML examples shown to the agent.
-"src/flow/planner.py" = ["E501"]
-"src/flow/coder.py" = ["E501"]
-"src/flow/reviewer.py" = ["E501"]
+# (Prompt templates now live in src/flow/prompts/*.md and are not subject to
+# Python line-length linting. Add per-file ignores here if needed in future.)
 
 [tool.ruff.lint.isort]
 known-first-party = ["flow"]

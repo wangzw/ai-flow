@@ -131,12 +131,26 @@ def run_streaming_pty(
 
     POSIX only.
     """
+    import fcntl
     import pty
+    import struct
+    import termios
 
     # Discourage TUI/colour output even though the child sees a TTY.
     pty_env = {**env, "TERM": env.get("TERM", "dumb"), "NO_COLOR": "1"}
 
     master_fd, slave_fd = pty.openpty()
+    # Default pty winsize on Linux is 0×0, which causes some TUIs (e.g.
+    # copilot CLI) to wrap output aggressively (≈10 chars). Set a wide
+    # window so each tool/log line fits on one line in the captured
+    # transcript.
+    try:
+        winsize = struct.pack("HHHH", 50, 200, 0, 0)  # rows, cols, xpix, ypix
+        fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
+    except OSError:
+        pass
+    pty_env.setdefault("COLUMNS", "200")
+    pty_env.setdefault("LINES", "50")
     try:
         proc = subprocess.Popen(
             cmd,

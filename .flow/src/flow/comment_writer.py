@@ -77,10 +77,25 @@ def build_needs_human_comment(
 
 
 def build_ack_comment(*, command: str, accepted: bool, reason: str = "") -> str:
-    """Bot acknowledgment per spec §10.4 (mandatory after any /agent command)."""
+    """Bot acknowledgment per spec §10.4 (mandatory after any /agent command).
+
+    For accepted commands this is a *receipt* — the actual work (state
+    transition, planner re-dispatch, etc.) happens immediately afterward
+    and may take a while to surface follow-up comments. The wording
+    deliberately says "处理中" (in progress) rather than "已执行" so the
+    human knows the bot saw the command but the consequences are still
+    unfolding.
+    """
     if accepted:
-        return f"✅ 收到 `/agent {command}`，已执行。"
-    return f"❌ 拒绝 `/agent {command}`：{reason}"
+        return (
+            f"✅ 收到 `/agent {command}`，正在处理…\n\n"
+            f"接下来会切换 issue 状态并重新调度对应的 agent。"
+            f"具体进展会以后续评论 / label 变化的方式呈现。"
+        )
+    return (
+        f"❌ 拒绝 `/agent {command}`\n\n"
+        f"{reason}"
+    )
 
 
 # Marker used by the upsert helper to tell whether an existing comment is

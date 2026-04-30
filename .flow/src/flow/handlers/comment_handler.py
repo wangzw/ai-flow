@@ -63,6 +63,12 @@ def handle_comment_created() -> int:
         )
         return 0
 
+    # Acknowledge receipt FIRST — before any body mutations, label changes,
+    # or dispatching the (potentially slow) planner/implementer subprocess.
+    # This guarantees the human sees immediate feedback that their command
+    # was received, even if downstream work later fails or stalls.
+    gh.comment(issue, build_ack_comment(command=cmd.name, accepted=True))
+
     # decide: write decision_response into body, then transition + restart
     if cmd.name == "decide" and cmd.arg:
         if _is_goal(issue):
@@ -82,7 +88,6 @@ def handle_comment_created() -> int:
         gh.update_issue_body(issue, gb.to_body())
 
     gh.set_state_label(issue, next_label)
-    gh.comment(issue, build_ack_comment(command=cmd.name, accepted=True))
 
     # If transitioning to a state that should re-dispatch, route to issue_handler.
     if next_label in ("agent-ready", "agent-working"):

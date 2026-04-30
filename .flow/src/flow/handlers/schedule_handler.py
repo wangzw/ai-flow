@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 
 from flow.clients.github import GitHubClient
+from flow.human_messages import schedule_retry_dispatch_comment
 from flow.manifest import TaskBody
 from flow.retry import is_due
 
@@ -24,7 +25,9 @@ def handle_schedule() -> int:
             print(f"[sched] re-dispatching task #{issue.number} (failed_env={fenv})",
                   flush=True)
             issue.create_comment(
-                f"⏰ failed-env retry: dispatching at {datetime.now(timezone.utc).isoformat()}"
+                schedule_retry_dispatch_comment(
+                    now_iso=datetime.now(timezone.utc).isoformat(),
+                )
             )
             # Toggle label to retrigger
             issue.remove_from_labels("agent-ready")

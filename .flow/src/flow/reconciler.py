@@ -10,6 +10,11 @@ from dataclasses import dataclass
 
 from flow.clients.github import GitHubClient
 from flow.comment_writer import build_plan_board_comment
+from flow.human_messages import (
+    goal_complete_comment,
+    planner_false_done_comment,
+    task_cancelled_by_planner_comment,
+)
 from flow.manifest import (
     GoalBody,
     ManifestEntry,
@@ -134,12 +139,14 @@ def reconcile(
                  non_terminal=[c.issue.number for c in non_terminal])
             client.comment(
                 goal_issue,
-                "❌ Planner declared `done` but tasks are still in flight: "
-                f"{[c.issue.number for c in non_terminal]}. Forcing needs-human.",
+                planner_false_done_comment(
+                    non_terminal_issues=[c.issue.number for c in non_terminal],
+                ),
             )
             client.set_state_label(goal_issue, "needs-human")
             return
-        client.comment(goal_issue, planner_result.summary or "Goal complete.")
+        client.comment(goal_issue,
+                       goal_complete_comment(summary=planner_result.summary))
         client.set_state_label(goal_issue, "agent-done")
         _upsert_plan_board(
             client=client, goal_issue=goal_issue, goal_body=goal_body,
@@ -219,8 +226,7 @@ def reconcile(
             continue
         if child.state_label in TERMINAL_STATES:
             continue
-        client.comment(child.issue,
-                       "Cancelled by Planner: this task is no longer in the desired plan.")
+        client.comment(child.issue, task_cancelled_by_planner_comment())
         client.set_state_label(child.issue, "agent-failed")
         # Mirror in manifest
         entry = goal_body.find_by_task_id(task_id)
@@ -248,7 +254,9 @@ def reconcile(
     for cancel_id in actions.get("cancel_tasks", []) or []:
         target = next((c for c in current_children if c.task_id == cancel_id), None)
         if target and target.state_label not in TERMINAL_STATES:
-            client.comment(target.issue, "Cancelled by Planner via actions.cancel_tasks.")
+            client.comment(target.issue, task_cancelled_by_planner_comment(
+                reason="Planner 通过 `actions.cancel_tasks` 显式取消了该任务。"
+            ))
             client.set_state_label(target.issue, "agent-failed")
 
     # 5) Sync manifest states from observed labels (truth source: labels)

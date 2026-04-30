@@ -118,9 +118,18 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
         gh.update_issue_body(task_issue, body.to_body())
         try:
             goal_issue = repo.get_issue(body.goal_issue)
-            gh.comment(goal_issue,
-                       f"⚖️ Reviewer 死循环 (iter={iteration}, dims={result.failed_dimensions})。"
-                       "调度 Planner 仲裁。")
+            from flow.human_messages import reviewer_arbitration_dispatched_comment
+
+            gh.comment(
+                goal_issue,
+                reviewer_arbitration_dispatched_comment(
+                    task_issue_number=task_issue.number if task_issue else 0,
+                    pr_number=pr_number,
+                    iteration=iteration,
+                    failed_dimensions=list(result.failed_dimensions or []),
+                    reasons=dict(result.reasons or {}),
+                ),
+            )
             gh.set_state_label(goal_issue, "agent-working")
             from flow.dispatch_actions import dispatch_issue
             dispatch_issue(os.environ.get("FLOW_REPO") or repo.full_name,
@@ -130,9 +139,19 @@ def review_pr(*, pr, repo, gh: GitHubClient, cfg: Config) -> int:
         return 0
 
     if task_issue is not None:
-        gh.comment(task_issue,
-                   f"❌ Reviewer 已达最大迭代 ({iteration})，dims={result.failed_dimensions}，"
-                   "需要人工介入。")
+        from flow.human_messages import reviewer_max_iterations_comment
+
+        history = list(body.review.history) if body is not None else []
+        gh.comment(
+            task_issue,
+            reviewer_max_iterations_comment(
+                pr_number=pr_number,
+                iteration=iteration,
+                failed_dimensions=list(result.failed_dimensions or []),
+                reasons=dict(result.reasons or {}),
+                history=history,
+            ),
+        )
         gh.set_state_label(task_issue, "needs-human")
     return 0
 

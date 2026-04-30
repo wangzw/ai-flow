@@ -85,10 +85,9 @@ def handle_goal_ready(*, repo, issue, gh: GitHubClient, cfg: Config) -> int:
         client=client,
     )
     if result.status == "no_marker":
-        gh.comment(
-            issue,
-            f"❌ Planner 未产出 result.yaml（failed-env）：{result.blocker}",
-        )
+        from flow.human_messages import planner_no_marker_comment
+
+        gh.comment(issue, planner_no_marker_comment(blocker=result.blocker or {}))
         gh.set_state_label(issue, "needs-human")
         return 0
 
@@ -234,8 +233,10 @@ def _drive_to_completion(*, repo, goal_issue, gh: GitHubClient, cfg: Config,
                 client=planner_client,
             )
             if result.status == "no_marker":
+                from flow.human_messages import planner_no_marker_comment
+
                 gh.comment(goal_issue,
-                           f"❌ Planner 未产出 result.yaml（failed-env）：{result.blocker}")
+                           planner_no_marker_comment(blocker=result.blocker or {}))
                 gh.set_state_label(goal_issue, "needs-human")
                 return 0
             reconcile(
@@ -280,8 +281,9 @@ def _run_implementer_for_task(*, repo, task_issue, task_body, gh: GitHubClient,
     from flow.coder import run_implementer
 
     if not task_body.task_id:
-        gh.comment(task_issue,
-                   "❌ Task body 缺少 frontmatter (task_id)。需 Planner 重新生成。")
+        from flow.human_messages import task_missing_frontmatter_comment
+
+        gh.comment(task_issue, task_missing_frontmatter_comment())
         gh.set_state_label(task_issue, "needs-human")
         return None
 
@@ -372,12 +374,27 @@ def _run_implementer_for_task(*, repo, task_issue, task_body, gh: GitHubClient,
     )
     task_body.agent_state.failed_env = state
     if next_at is None:
-        gh.comment(task_issue,
-                   f"❌ failed-env (`{category}`) 已耗尽重试预算，需要人工介入。")
+        from flow.human_messages import failed_env_exhausted_comment
+
+        gh.comment(
+            task_issue,
+            failed_env_exhausted_comment(
+                category=category,
+                attempts=int(state.get("attempts", 0) or 0),
+            ),
+        )
         gh.set_state_label(task_issue, "needs-human")
     else:
-        gh.comment(task_issue,
-                   f"⏳ failed-env (`{category}`)，将在 `{next_at.isoformat()}` 自动重试。")
+        from flow.human_messages import failed_env_retry_pending_comment
+
+        gh.comment(
+            task_issue,
+            failed_env_retry_pending_comment(
+                category=category,
+                attempts=int(state.get("attempts", 0) or 0),
+                next_at=next_at.isoformat(),
+            ),
+        )
         gh.set_state_label(task_issue, "agent-ready")
     task_body.agent_state.stage = "blocked"
     gh.update_issue_body(task_issue, task_body.to_body())

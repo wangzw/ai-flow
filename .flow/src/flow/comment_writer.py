@@ -1,22 +1,33 @@
-"""Double-layer needs-human comment template (spec §10.2)."""
+"""Double-layer needs-human comment template (spec §10.2).
+
+Layout: human-friendly heading + prose + the option list as Markdown
+bullets so readers don't need to parse YAML, then a collapsed
+`<details>` containing the full machine-readable payload for scripts.
+"""
 
 from io import StringIO
 
 from ruamel.yaml import YAML
 
-_TEMPLATE = """## 🛑 需要人类决策
-
-{prose}
-
-```yaml
-{yaml_block}```
-
-{resume_instruction}
-"""
-
 _DEFAULT_RESUME = (
-    "请评论 `/agent decide <id>` 选择，或写自定义答案后 `/agent resume`，或 `/agent abort` 终止。"
+    "请评论 `/agent decide <id>` 选择，或写自定义答案后 `/agent resume`，"
+    "或 `/agent abort` 终止。"
 )
+
+
+def _render_options(options: list) -> str:
+    """Render decision.options as a readable bullet list."""
+    if not options:
+        return "_(本次没有预设选项，请直接给出自定义答案后 `/agent resume`。)_"
+    lines: list[str] = []
+    for opt in options:
+        if not isinstance(opt, dict):
+            lines.append(f"- {opt}")
+            continue
+        oid = opt.get("id", "?")
+        desc = opt.get("desc") or opt.get("description") or ""
+        lines.append(f"- **`{oid}`** — {desc}")
+    return "\n".join(lines)
 
 
 def build_needs_human_comment(
@@ -39,9 +50,30 @@ def build_needs_human_comment(
     buf = StringIO()
     yaml.dump(payload, buf)
 
-    return _TEMPLATE.format(
-        prose=prose, yaml_block=buf.getvalue(), resume_instruction=resume_instruction
-    )
+    question = decision.get("question") or "请给出决策。"
+    options_block = _render_options(list(decision.get("options") or []))
+
+    parts = [
+        "## 🛑 需要人类决策",
+        "",
+        prose.strip(),
+        "",
+        f"### ❓ {question.strip()}",
+        "",
+        options_block,
+        "",
+        "### 👉 下一步",
+        f"- {resume_instruction}",
+        "",
+        "<details><summary>结构化数据 (machine-readable)</summary>",
+        "",
+        "```yaml",
+        buf.getvalue().rstrip(),
+        "```",
+        "",
+        "</details>",
+    ]
+    return "\n".join(parts) + "\n"
 
 
 def build_ack_comment(*, command: str, accepted: bool, reason: str = "") -> str:

@@ -365,6 +365,50 @@ def merge_failed_comment(*, reason: str, classification: str) -> str:
     )
 
 
+def goal_aborted_cascade_comment(
+    *, goal: int, closed_prs: list[int] | None = None,
+) -> str:
+    pr_line = ""
+    if closed_prs:
+        prs = ", ".join(f"#{n}" for n in closed_prs)
+        pr_line = f"已关联关闭的 PR：{prs}\n\n"
+    return (
+        "## 🚫 父 Goal 已被中止 — 任务联动取消\n\n"
+        f"父 Goal **#{goal}** 收到 `/agent abort`，因此本任务一并终止，"
+        "状态切换为 `agent-failed` 并关闭。\n\n"
+        f"{pr_line}"
+        "_如需重新推进相关工作，请新建 Goal issue。_\n"
+    )
+
+
+def goal_abort_summary_comment(
+    *, cancelled_tasks: list[int], closed_prs: list[int],
+) -> str:
+    head = "## 🛑 Goal 已中止 — 联动清理完成\n\n"
+    if not cancelled_tasks and not closed_prs:
+        return head + "未发现需要清理的子任务或 PR。Goal 已切换为 `agent-failed`。\n"
+    parts = [head]
+    if cancelled_tasks:
+        ts = ", ".join(f"#{n}" for n in cancelled_tasks)
+        parts.append(f"- 已取消子任务：{ts}\n")
+    if closed_prs:
+        ps = ", ".join(f"#{n}" for n in closed_prs)
+        parts.append(f"- 已关闭关联 PR：{ps}\n")
+    parts.append(
+        "\nGoal 自身已切换为 `agent-failed` 并关闭。"
+        "如需重新推进，请新建 Goal issue。\n"
+    )
+    return "".join(parts)
+
+
+def task_aborted_pr_closed_comment(*, pr: int) -> str:
+    return (
+        "## 🚫 任务中止 — 关联 PR 已关闭\n\n"
+        f"由于本任务收到 `/agent abort`，关联 PR **#{pr}** 已被自动关闭。\n"
+        "如需恢复工作，请新建任务并重新规划。\n"
+    )
+
+
 def task_cancelled_by_planner_comment(*, reason: str | None = None) -> str:
     why = reason or "Planner 在新一轮 reconcile 中将该任务移出了 desired plan。"
     return (

@@ -27,6 +27,88 @@ def _is_goal(issue) -> bool:
     return any(lbl.name == "type:goal" for lbl in issue.labels)
 
 
+def _cascade_goal_abort(*, goal_issue, repo, gh) -> tuple[list[int], list[int]]:
+    """Cascade /agent abort from a Goal to its children: cancel all
+    non-terminal task issues and close their open PRs.
+
+    Returns (cancelled_task_issue_numbers, closed_pr_numbers).
+    """
+    from flow.human_messages import goal_aborted_cascade_comment
+
+    gb = GoalBody.parse(goal_issue.body or "")
+    cancelled: list[int] = []
+    closed_prs: list[int] = []
+    for entry in gb.manifest:
+        try:
+            task_issue = repo.get_issue(entry.issue)
+        except Exception:
+            continue
+        cur = _current_state(task_issue)
+        if cur in ("agent-done", "agent-failed"):
+            continue
+        # Close associated PRs first (so the cascade comment can mention them).
+        pr_nums: list[int] = []
+        try:
+            tb = TaskBody.parse(task_issue.body or "")
+            for art in tb.artifacts or []:
+                if not isinstance(art, dict):
+                    continue
+                pr_num = art.get("pr")
+                if pr_num is None:
+                    continue
+                try:
+                    pr = repo.get_pull(int(pr_num))
+                    if pr.state == "open":
+                        pr.edit(state="closed")
+                        pr_nums.append(int(pr_num))
+                except Exception as exc:
+                    print(f"[cascade] close PR #{pr_num} failed: {exc}", flush=True)
+        except Exception:
+            pass
+        closed_prs.extend(pr_nums)
+        try:
+            gh.comment(task_issue, goal_aborted_cascade_comment(
+                goal=goal_issue.number, closed_prs=pr_nums or None,
+            ))
+        except Exception:
+            pass
+        try:
+            gh.set_state_label(task_issue, "agent-failed")
+        except Exception:
+            pass
+        try:
+            if task_issue.state != "closed":
+                task_issue.edit(state="closed")
+        except Exception as exc:
+            print(f"[cascade] close task #{entry.issue} failed: {exc}", flush=True)
+        cancelled.append(entry.issue)
+    return cancelled, closed_prs
+
+
+def _close_task_open_prs(*, task_issue, repo) -> list[int]:
+    """For /agent abort on a task: close any open PRs listed in the task's
+    artifacts. Returns list of closed PR numbers."""
+    closed: list[int] = []
+    try:
+        tb = TaskBody.parse(task_issue.body or "")
+    except Exception:
+        return closed
+    for art in tb.artifacts or []:
+        if not isinstance(art, dict):
+            continue
+        pr_num = art.get("pr")
+        if pr_num is None:
+            continue
+        try:
+            pr = repo.get_pull(int(pr_num))
+            if pr.state == "open":
+                pr.edit(state="closed")
+                closed.append(int(pr_num))
+        except Exception as exc:
+            print(f"[task-abort] close PR #{pr_num} failed: {exc}", flush=True)
+    return closed
+
+
 def handle_comment_created() -> int:
     body = os.environ.get("FLOW_COMMENT_BODY", "")
     cmd = extract_agent_command(body)
@@ -103,6 +185,48 @@ def handle_comment_created() -> int:
         # /agent replan was issued mid-flight (state == agent-working).
         gb.agent_state.dispatch_lock = None
         gh.update_issue_body(issue, gb.to_body())
+
+    # /agent abort: cascade so children & PRs don't dangle in non-terminal
+    # states after the goal/task is declared failed.
+    if cmd.name == "abort":
+        from flow.human_messages import (
+            goal_abort_summary_comment,
+            task_aborted_pr_closed_comment,
+        )
+
+        if _is_goal(issue):
+            cancelled, closed_prs = _cascade_goal_abort(
+                goal_issue=issue, repo=repo, gh=gh,
+            )
+            try:
+                gh.comment(
+                    issue,
+                    goal_abort_summary_comment(
+                        cancelled_tasks=cancelled, closed_prs=closed_prs,
+                    ),
+                )
+            except Exception:
+                pass
+            # Close the goal issue itself once children are cleaned up.
+            try:
+                if issue.state != "closed":
+                    issue.edit(state="closed")
+            except Exception as exc:
+                print(f"[abort] close goal #{issue.number} failed: {exc}",
+                      flush=True)
+        else:
+            closed_prs = _close_task_open_prs(task_issue=issue, repo=repo)
+            for pr_num in closed_prs:
+                try:
+                    gh.comment(issue, task_aborted_pr_closed_comment(pr=pr_num))
+                except Exception:
+                    pass
+            try:
+                if issue.state != "closed":
+                    issue.edit(state="closed")
+            except Exception as exc:
+                print(f"[abort] close task #{issue.number} failed: {exc}",
+                      flush=True)
 
     gh.set_state_label(issue, next_label)
 

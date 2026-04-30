@@ -161,10 +161,13 @@ def task_missing_frontmatter_comment() -> str:
         "## ❌ Task body 缺少 frontmatter\n\n"
         "该 task issue 的 body 解析不出 `task_id`，无法进入 Implementer 流水线。"
         "已切换为 `needs-human`。\n\n"
-        "### 👉 下一步\n"
-        "- 让 Planner 重新生成该任务（在 Goal 上 `/agent replan <hint>`）。\n"
-        "- 或手动补齐 task body（参考其它 task issue 的 frontmatter 结构）后 "
-        "`/agent resume`。\n"
+        "### 👉 下一步（任选其一）\n"
+        "- **手动补齐**：参考其它 task issue 的 frontmatter 结构，"
+        "把 `task_id` 等字段写回本 issue 的 body，然后在本 issue 评论 `/agent resume`。\n"
+        "- **由 Planner 重新生成**：在 **Goal issue** 上评论 "
+        "`/agent replan <hint>`（hint 简述要修复什么），"
+        "Planner 会重新规划包括本任务在内的整个 plan。"
+        "Goal 处于 `agent-ready` / `agent-working` / `needs-human` 任一状态都可以接受。\n"
     )
 
 
@@ -226,6 +229,6 @@ def task_cancelled_by_planner_comment(*, reason: str | None = None) -> str:
     return (
         "## 🚫 任务被 Planner 取消\n\n"
         f"{why}\n\n"
-        "状态已切换为 `agent-failed`。如有疑问，可在 Goal issue 上评论 "
-        "`/agent replan <hint>` 重新规划。\n"
+        "状态已切换为 `agent-failed`。如有疑问，可在 **Goal issue** 上评论 "
+        "`/agent replan <hint>` 重新规划（Goal 在任意非终态都可接受）。\n"
     )

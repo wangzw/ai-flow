@@ -44,8 +44,12 @@ _TRANSITIONS: dict[tuple[str | None, str], str] = {
     # /agent retry — restart current stage; stays in same state
     ("agent-working", "command:retry"): "agent-working",
     ("agent-ready", "command:retry"): "agent-ready",
-    # /agent replan from agent-ready re-runs Planner
+    # /agent replan re-runs Planner. Allowed from any non-terminal state on
+    # the goal — the Planner is reactive and re-derives the plan from current
+    # child state every invocation, so it is always safe to ask for a fresh
+    # plan even while children are mid-flight.
     ("agent-ready", "command:replan"): "agent-working",
+    ("agent-working", "command:replan"): "agent-working",
 }
 
 

@@ -32,6 +32,16 @@ def test_resume_from_human():
     assert next_state_for_event("needs-human", "command:replan") == "agent-working"
 
 
+def test_replan_from_any_non_terminal():
+    """Goal Planner is reactive — replan must work even mid-flight."""
+    assert next_state_for_event("needs-human", "command:replan") == "agent-working"
+    assert next_state_for_event("agent-ready", "command:replan") == "agent-working"
+    assert next_state_for_event("agent-working", "command:replan") == "agent-working"
+    # Terminal states still reject replan.
+    assert next_state_for_event("agent-done", "command:replan") is None
+    assert next_state_for_event("agent-failed", "command:replan") is None
+
+
 def test_planner_done_terminal():
     assert next_state_for_event("agent-working", "planner_done") == "agent-done"
     assert next_state_for_event("agent-working", "merged") == "agent-done"

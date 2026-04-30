@@ -85,6 +85,9 @@ def handle_comment_created() -> int:
     if cmd.name == "replan" and _is_goal(issue):
         gb = GoalBody.parse(issue.body or "")
         gb.agent_state.last_planner_run = None
+        # Clear any in-flight dispatch lock so the planner re-runs even if
+        # /agent replan was issued mid-flight (state == agent-working).
+        gb.agent_state.dispatch_lock = None
         gh.update_issue_body(issue, gb.to_body())
 
     gh.set_state_label(issue, next_label)

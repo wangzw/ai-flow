@@ -53,6 +53,40 @@ class CopilotCliClient:
 
         merged_env = {**os.environ, **(env or {})}
 
+        # Persist the *inputs* (prompt + command + cwd) up-front so even a
+        # subprocess crash leaves them recoverable as workflow artifacts.
+        if log_dir is not None:
+            try:
+                (log_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
+                # Redacted command: replace the prompt arg with a placeholder so
+                # we don't duplicate it (and avoid leaking long YAML twice).
+                redacted = list(cmd)
+                if "--prompt" in redacted:
+                    i = redacted.index("--prompt")
+                    if i + 1 < len(redacted):
+                        redacted[i + 1] = "<see prompt.txt>"
+                (log_dir / "command.txt").write_text(
+                    " ".join(repr(a) if " " in a else a for a in redacted) + "\n",
+                    encoding="utf-8",
+                )
+                env_keys = sorted(set(env.keys()) if env else set())
+                meta_lines = [
+                    f"executable: {self.executable}",
+                    f"cwd: {cwd}",
+                    f"timeout_seconds: {timeout}",
+                    f"stream: {stream}",
+                    f"use_pty: {use_pty}",
+                    f"prompt_chars: {len(prompt)}",
+                    "extra_env_keys:",
+                    *[f"  - {k}" for k in env_keys],
+                ]
+                (log_dir / "meta.yaml").write_text(
+                    "\n".join(meta_lines) + "\n", encoding="utf-8",
+                )
+            except Exception as exc:
+                # Logging shouldn't break execution.
+                print(f"[copilot] warn: failed to persist inputs: {exc}", flush=True)
+
         t0 = time.monotonic()
         if stream:
             pty_mode = use_pty if use_pty is not None else (os.name == "posix")

@@ -41,3 +41,25 @@ jobs:
           FLOW_REPO: ${{ github.repository }}
           FLOW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
         run: python -m flow.coordinator merge-queue
+
+      - name: Collect artifacts
+        if: always()
+        run: |
+          mkdir -p artifacts
+          for d in /tmp/flow-merge-pr-*/host-logs /tmp/flow-merge-pr-*/repo/.review /tmp/flow-merge-pr-*/repo/.agent; do
+            if [ -d "$d" ]; then
+              dest="artifacts/$(basename $(dirname $(dirname $d)))-$(basename $d)"
+              cp -r "$d" "$dest" 2>/dev/null || true
+            fi
+          done
+          [ -f .flow-metrics.jsonl ] && cp .flow-metrics.jsonl artifacts/ || true
+          ls -la artifacts/ || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-merge-queue-run-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7

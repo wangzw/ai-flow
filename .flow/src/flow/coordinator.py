@@ -7,7 +7,7 @@ Usage (from .github/workflows/flow-*.yml):
 
 Commands:
     issue-labeled   — FLOW_ISSUE_NUMBER, FLOW_LABEL_ADDED
-    comment-created — FLOW_ISSUE_NUMBER, FLOW_COMMENT_BODY, FLOW_COMMENT_AUTHOR
+    comment-created — FLOW_ISSUE_NUMBER, FLOW_COMMENT_BODY, FLOW_COMMENT_AUTHOR, FLOW_COMMENT_ID
     pr-ready        — FLOW_PR_NUMBER
     merge-queue     — (no per-PR env)
     schedule        — cron sweep

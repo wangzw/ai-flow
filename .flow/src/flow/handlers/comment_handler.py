@@ -67,7 +67,21 @@ def handle_comment_created() -> int:
     # or dispatching the (potentially slow) planner/implementer subprocess.
     # This guarantees the human sees immediate feedback that their command
     # was received, even if downstream work later fails or stalls.
-    gh.comment(issue, build_ack_comment(command=cmd.name, accepted=True))
+    #
+    # Use a 👍 reaction on the user's comment (lightweight, non-spammy)
+    # rather than posting a reply comment. Falls back to a comment if the
+    # reaction API call fails or the comment id wasn't provided.
+    comment_id_raw = os.environ.get("FLOW_COMMENT_ID", "").strip()
+    reacted = False
+    if comment_id_raw:
+        try:
+            reacted = gh.react_to_comment(
+                issue, int(comment_id_raw), reaction="+1",
+            )
+        except ValueError:
+            reacted = False
+    if not reacted:
+        gh.comment(issue, build_ack_comment(command=cmd.name, accepted=True))
 
     # decide: write decision_response into body, then transition + restart
     if cmd.name == "decide" and cmd.arg:

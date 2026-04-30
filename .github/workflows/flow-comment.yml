@@ -41,5 +41,6 @@ jobs:
           FLOW_ISSUE_NUMBER: ${{ github.event.issue.number }}
           FLOW_COMMENT_BODY: ${{ github.event.comment.body }}
           FLOW_COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          FLOW_COMMENT_ID: ${{ github.event.comment.id }}
           FLOW_METRICS_FILE: ${{ github.workspace }}/.flow-metrics.jsonl
         run: python -m flow.coordinator comment-created

@@ -72,6 +72,26 @@ class GitHubClient:
     def comment(self, issue, body: str):
         return issue.create_comment(body)
 
+    def react_to_comment(
+        self, issue, comment_id: int, reaction: str = "+1",
+    ) -> bool:
+        """React to an existing issue/PR comment with an emoji.
+
+        reaction must be one of GitHub's supported types:
+        '+1', '-1', 'laugh', 'confused', 'heart', 'hooray', 'rocket', 'eyes'.
+
+        Returns True on success, False if the comment couldn't be found or
+        the API rejected the call. Never raises — reactions are best-effort
+        UX sugar; if they fail we fall back to a comment at the call site.
+        """
+        try:
+            comment = issue.get_comment(comment_id)
+            comment.create_reaction(reaction)
+            return True
+        except Exception as exc:
+            print(f"[github] react_to_comment failed: {exc}", flush=True)
+            return False
+
     def update_comment(self, issue, comment_id: int, body: str):
         """Edit the body of an existing comment by id (PyGithub IssueComment)."""
         comment = issue.get_comment(comment_id)
